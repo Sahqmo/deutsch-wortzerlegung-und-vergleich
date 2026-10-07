@@ -171,33 +171,71 @@ def _split_latin_prefix(word: str) -> tuple[str, str] | None:
     남는 부분이 ① 라틴어·그리스어 결합형 어근(BOUND_ROOTS)이거나 ② 흔한 영단어이면서 전체는 굳어진 흔한 단어(report, detail …)가 아닐 때만 쪼갠다."""
     if len(word) < 5:
         return None
+    singular = word[:-1] if word.endswith("s") and len(word) > 5 else word
+    if word in NO_PREFIX_SPLIT or singular in NO_PREFIX_SPLIT:
+        return None
+    zw = max(_en(word), _en(singular))  # 복수형(exchanges)은 단수형의 빈도도 본다
     for p in LATIN_PREFIXES:
         rest = word[len(p):]
         if not word.startswith(p) or len(rest) < 3:
             continue
         if rest in BOUND_ROOTS:
             return p, rest
-        if p not in BOUND_ONLY_PREFIXES and len(word) >= 6 and _en(word) < 4.5 and _en(rest) >= 4.0:
+        if p not in BOUND_ONLY_PREFIXES and len(word) >= 6 and zw < 4.5 and _en(rest) >= 4.0:
             return p, rest
     return None
 
 
 # 사전에서 배운 접사(빈도순)로 푼다. 사전에 없는 드문 말(unspectral, pseudoscorpion, cannonry)을 위한 규칙이라
 # 남는 부분이 자유 단어일 때만 쪼갠다. 흔한 단어는 굳어진 것으로 보고 그대로 둔다.
+# 사전 파일 없이도 쓰는 정적 접두사 목록(라틴·그리스·게르만계). 남는 부분이 자유 단어일 때만, 흔한 단어가 아닐 때만 쪼갠다.
+# 사전에서 배운 접두사(english_affixes)는 이 목록에 없는 것만 보태 쓴다.
+STATIC_PREFIXES = [
+    # 라틴계: re-, con-/com-, dis- 등
+    "re", "con", "com", "dis", "de", "ex", "pre", "pro", "post", "sub", "super", "trans", "inter", "intra", "intro", "extra", "ultra",
+    "contra", "counter", "circum", "ante", "ambi", "mal", "tri", "uni", "multi", "semi", "omni", "non", "un",
+    # 그리스계
+    "anti", "auto", "bio", "geo", "micro", "macro", "mono", "poly", "hyper", "hypo", "meta", "para", "peri", "syn", "tele", "neo", "pseudo",
+    "electro", "photo", "neuro", "arch", "pan",
+    # 게르만계
+    "over", "under", "out", "mis", "fore", "mid", "self", "half",
+]
+# 짧아서 우연히 맞기 쉬운 접두사 (남는 부분이 더 흔한 단어여야 한다)
+SHORT_PREFIXES = {"re", "de", "ex", "un", "mid"}
+# 접두사처럼 보이지만 어원상 굳은 말
+NO_PREFIX_SPLIT = {"comfort", "parasite", "sublime", "constable", "comfortable", "bishop", "uniform", "section", "parasite", "exchange", "represent"}
+# in-/im- 은 우연한 일치가 많아서(inch, image, import) 정적 목록에 넣지 않는다. 사전에서 배운 경우에도 짧은 접두사라 쓰지 않는다
+
+
 def _learned_prefix(word: str) -> tuple[str, str] | None:
-    zw = _en(word)
-    for p, n in english_affixes()[0]:
+    singular = word[:-1] if word.endswith("s") and len(word) > 5 else word
+    if word in NO_PREFIX_SPLIT or singular in NO_PREFIX_SPLIT:
+        return None
+    zw = max(_en(word), _en(singular))  # 복수형(exchanges, uniforms)은 단수형의 빈도도 본다
+    learned = dict(english_affixes()[0])
+    inventory = {p: 100 for p in STATIC_PREFIXES}
+    for p, n in learned.items():
+        if n >= 12 and p not in inventory:
+            inventory[p] = n
+    static = set(STATIC_PREFIXES)
+    # 긴 접두사부터 (under 를 un 보다 먼저)
+    for p, n in sorted(inventory.items(), key=lambda kv: (-len(kv[0]), -kv[1])):
         rest = word[len(p):]
-        if not word.startswith(p) or len(rest) < 4 or n < 12:
+        if not word.startswith(p) or len(rest) < 4:
             continue
         guard = 5.0 if p in ("un", "non") else 4.5
         if zw >= guard:
             continue
-        # 짧은 접두사는 남는 부분이 아주 흔한 단어일 때만 (a-, in-, be- 처럼 우연히 맞기 쉽다)
-        if len(p) <= 2 and p not in ("un", "re", "de", "co"):
+        if p in static:
+            # 합성적인 짜임이면 전체가 남는 부분보다 훨씬 흔하지 않다 (extraordinary 4.36 ≤ ordinary 4.42 + 0.3)
+            need = 3.0 if p in ("un", "non") and zw < 3.8 else 3.7 if p in SHORT_PREFIXES else 3.3
+            if _en(rest) >= need and zw <= _en(rest) + 0.3:
+                return p, rest
             continue
-        # 흔한 접두사(n≥40, 세 글자 이상)가 붙은 드문 말은 남는 부분이 조금 드물어도 쪼갠다 (unspectral, pseudoscorpion)
-        need = 3.0 if p in ("un", "non") and zw < 3.8 else 4.2 if len(p) <= 2 else 2.8 if (n >= 40 and zw < 3.8) else 3.6
+        # 사전에서만 배운 접두사: 짧은 것은 re/de/co 만, 흔한 접두사(n≥40)가 붙은 드문 말은 남는 부분이 조금 드물어도 쪼갠다
+        if len(p) <= 2 and p not in ("co",):
+            continue
+        need = 4.2 if len(p) <= 2 else 2.8 if (n >= 40 and zw < 3.8) else 3.6
         if _en(rest) >= need:
             return p, rest
     return None
@@ -451,8 +489,8 @@ def _sino_units(form: str, cand: str, split_chars: bool = False) -> list[Unit]:
     return out
 
 
-def _try_sino(form: str, tr: Translator, with_zh: bool = True, split_chars: bool = False) -> list[Unit] | None:
-    """일본어/중국어(번체) 번역 후보 중 음이 글자별로 맞는 한자어가 있으면 한자 형태소 단위들로."""
+def _find_hanja(form: str, tr: Translator, with_zh: bool = True) -> str | None:
+    """일본어/중국어(번체) 번역 후보 중 음이 글자별로 맞는 한자 표기(病院)."""
     try:
         candidates = list(tr.lookup(form, "ko", "ja")[:5])
         if with_zh:
@@ -460,10 +498,59 @@ def _try_sino(form: str, tr: Translator, with_zh: bool = True, split_chars: bool
     except RuntimeError:
         return None
     for cand in candidates:
-        hanjas = hanja_reading_matches(form, cand)
-        if hanjas:
-            return _sino_units(form, cand, split_chars)
+        if hanja_reading_matches(form, cand):
+            return cand
     return None
+
+
+def _try_sino(form: str, tr: Translator, with_zh: bool = True, split_chars: bool = False) -> list[Unit] | None:
+    """일본어/중국어(번체) 번역 후보 중 음이 글자별로 맞는 한자어가 있으면 한자 형태소 단위들로."""
+    cand = _find_hanja(form, tr, with_zh)
+    return _sino_units(form, cand, split_chars) if cand else None
+
+
+# ───────── 분석 후보: 한자어의 경계 조합 ─────────
+# 한자어 하나를 어떻게 끊을지(한 덩어리 / 한 글자씩 / 단어 단위 / 그 사이)에 따라 짝짓기와 점수가 달라진다 (냉장 | 고 ↔ 냉 | 장고).
+# 한자 n 글자의 경계 조합을 전부 만들어(2^(n-1) 개) 후보로 돌려주면, 화면 쪽에서 점수가 가장 높은 것을 고른다.
+MAX_CANDIDATE_CHARS = 4
+
+
+def _compositions(n: int) -> list[list[tuple[int, int]]]:
+    """0..n 을 연속한 구간으로 나누는 모든 방법: n=3 → [(0,3)], [(0,1),(1,3)], [(0,2),(2,3)], [(0,1),(1,2),(2,3)]."""
+    out: list[list[tuple[int, int]]] = []
+    for mask in range(1 << (n - 1)):
+        cuts = [i + 1 for i in range(n - 1) if mask >> i & 1]
+        bounds = [0, *cuts, n]
+        out.append([(bounds[i], bounds[i + 1]) for i in range(len(bounds) - 1)])
+    return out
+
+
+def ko_candidates(text: str, tr: Translator) -> list[list[Unit]]:
+    """띄어쓰기 없는 한국어 한자어(2~4글자)의 경계 조합 후보 단위 목록. 한자어로 확인되지 않으면 빈 목록."""
+    text = text.strip()
+    if not HANGUL_WORD.match(text) or not 2 <= len(text) <= MAX_CANDIDATE_CHARS:
+        return []
+    cand = _find_hanja(text, tr)
+    if not cand or len(cand) != len(text):
+        return []
+    return [
+        [
+            Unit(text[a:b], [Morpheme(text[a:b], cand[a:b], role="root", origin="sino", lang="ko", lookup_text=cand[a:b], lookup_lang="ja")])
+            for a, b in comp
+        ]
+        for comp in _compositions(len(text))
+    ]
+
+
+def ja_candidates(text: str) -> list[list[Unit]]:
+    """띄어쓰기 없는 일본어 한어(한자 2~4글자)의 경계 조합 후보 단위 목록."""
+    text = text.strip()
+    if not 2 <= len(text) <= MAX_CANDIDATE_CHARS or not all(KANJI.match(c) for c in text):
+        return []
+    return [
+        [Unit(text[a:b], [Morpheme(text[a:b], text[a:b], role="root", origin="sino", lang="ja")]) for a, b in comp]
+        for comp in _compositions(len(text))
+    ]
 
 
 HANGUL_WORD = re.compile(r"^[가-힣]{2,}$")

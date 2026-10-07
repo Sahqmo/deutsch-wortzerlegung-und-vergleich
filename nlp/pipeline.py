@@ -6,32 +6,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 from align import align
 from german import _tagger, cap, decompose_de, is_plausible_german
-from targets import decompose_en, decompose_ja, decompose_ko
+from targets import decompose_en, decompose_ja, decompose_ko, ja_candidates, ko_candidates
 from wordfreq import zipf_frequency
+from affixes import SUFFIX_GLOSS
 from translator import Translator
 from units import Morpheme, Unit
 
 LANGS = ("en", "ko", "ja")
-
-# 뜻풀이는 영어로 둔다(번역기를 한 번 더 거쳐 한국어로 옮기면 Ein → 'A' → '라' 같은 엉뚱한 뜻이 나온다).
-# 다만 문법 기능을 나타내는 접미사 표지(명사화·축소 등)는 한국어 그대로 둔다.
-SUFFIX_GLOSS = {
-    "-er": "~하는 것·사람", "-ung": "명사화", "-heit": "성질(명사화)", "-keit": "성질(명사화)", "-schaft": "집단·상태",
-    "-lich": "~다운", "-chen": "축소(작은 것)", "-lein": "축소(작은 것)", "-nis": "명사화",
-    "-ure": "명사화", "-ation": "명사화", "-tion": "명사화", "-sion": "명사화", "-ment": "명사화", "-ness": "성질(명사화)",
-    "-ity": "성질(명사화)", "-ance": "명사화", "-ence": "명사화", "-ing": "~하는 것", "-or": "~하는 것·사람", "-al": "~의",
-    # 독일어 접미사 (추가)
-    "-tum": "상태·영역", "-ling": "~하는 사람·것", "-bar": "~할 수 있는", "-sam": "~하기 쉬운", "-haft": "~같은", "-los": "~없는(부정)",
-    "-isch": "~의", "-ig": "~의 성질", "-ler": "~하는 사람", "-ei": "~하는 곳·행위", "-in": "여성형",
-    # 영어 라틴·그리스계 접미사
-    "-ion": "명사화", "-ison": "명사화", "-ism": "~주의·상태", "-ist": "~하는 사람", "-ify": "~화하다", "-ary": "~의", "-ory": "~의",
-    "-ent": "~하는", "-ant": "~하는",
-    # 영어 형용사 접미사
-    "-less": "~없는(부정)", "-ful": "~가득한", "-able": "~할 수 있는", "-ible": "~할 수 있는", "-ous": "~성질의", "-ish": "~같은",
-    "-ive": "~하는 성향의", "-ic": "~의", "-ize": "~화하다",
-    # 한국어·일본어의 형용사화·용언화 어미
-    "-한": "~한(형용사화)", "-하다": "~하다(용언화)", "-적": "~적(형용사화)", "-な": "~な(형용사화 어미)", "-に": "~に(부사화 어미)",
-}
 
 PREFIX_GLOSS = {
     # 독일어 접두사
@@ -227,15 +208,27 @@ def _empty_target(lang: str) -> dict:
             "alignment": [], "confidence": "low", "comment": ""}
 
 
+def _is_noun(lower: str) -> bool:
+    """소문자 단어가 명사인가. 첫 글자를 대문자로 했을 때 명사(NN)이고, 소문자 그대로는 동사·형용사·부사가 아닐 때 (schreiben 은 명사가 아니다)."""
+    try:
+        if _tagger.analyze(cap(lower), taglevel=1)[1] != "NN":
+            return False
+        return not _tagger.analyze(lower, taglevel=1)[1].startswith(("V", "ADJ", "ADV"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def normalize_input(word: str) -> str:
+    """대소문자를 품사에 맞춘다. 전부 대문자(KRANKENHAUS)면 명사는 앞 글자만 대문자, 그 밖에는 전부 소문자로.
+    전부 소문자로 쓴 명사(krankenhaus)도 앞 글자를 대문자로. 이미 섞여 있으면(Krankenhaus, e-Mail …) 손대지 않는다."""
     word = word.strip()
-    if word.islower():
-        try:
-            if _tagger.analyze(cap(word), taglevel=1)[1] == "NN":
-                return cap(word)
-        except Exception:  # noqa: BLE001
-            pass
-    return word
+    if len(word) > 1 and word.isupper():
+        base = word.lower()
+    elif word.islower():
+        base = word
+    else:
+        return word
+    return cap(base) if _is_noun(base) else base
 
 
 def analyze(word_in: str, tr: Translator) -> dict:
@@ -248,6 +241,23 @@ def analyze(word_in: str, tr: Translator) -> dict:
     if len(_flat(de_units)) < 2:
         # 더 쪼갤 수 없는 단일 단어: 비교할 짜임이 없어서 어느 언어든 100% 가 되므로 번역기를 부르지 않고 멈춘다
         return {"input": word, "isGermanWord": True, "de": de_dec, "targets": [_empty_target(l) for l in LANGS]}
+
+    def make(lang: str, main: str, units: list[Unit], found: bool) -> tuple[dict, dict[int, list[str]]]:
+        groups: list[dict] = []
+        fallback = False
+        senses: dict[int, list[str]] = {}
+        if found:
+            groups, fallback, senses = align(de_units, units, lang, tr, word)
+            _fill_gloss(units, tr, lang)
+        return {
+            "lang": lang,
+            "found": found,
+            "label": " | ".join(u.text for u in units),
+            "decomposition": _decomposition(main if found else main or "", units, []),
+            "alignment": groups,
+            "confidence": _confidence(found, groups, fallback, units),
+            "comment": _comment(lang, found, units, groups, de_units),
+        }, senses
 
     def build(lang: str) -> tuple[dict, dict[int, list[str]]]:
         main = (tr.lookup(word, "de", lang) or [""])[0]
@@ -263,20 +273,20 @@ def analyze(word_in: str, tr: Translator) -> dict:
         else:
             units = decompose_ko(main, tr)
         found = found and bool(units)
-        groups: list[dict] = []
-        fallback = False
-        senses: dict[int, list[str]] = {}
-        if found:
-            groups, fallback, senses = align(de_units, units, lang, tr, word)
-            _fill_gloss(units, tr, lang)
-        return {
-            "lang": lang,
-            "found": found,
-            "decomposition": _decomposition(main if found else main or "", units, []),
-            "alignment": groups,
-            "confidence": _confidence(found, groups, fallback, units),
-            "comment": _comment(lang, found, units, groups, de_units),
-        }, senses
+        target, senses = make(lang, main, units, found)
+        # 분석 후보: 한자어는 경계 조합마다 정렬을 해 두고, 화면 쪽(점수 공식이 있는 곳)에서 가장 잘 맞는 것을 고른다
+        if found and lang in ("ko", "ja"):
+            alts = ko_candidates(main, tr) if lang == "ko" else ja_candidates(main)
+            seen = {tuple(u.text for u in units)}
+            candidates = []
+            for alt in alts:
+                key = tuple(u.text for u in alt)
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append(make(lang, main, alt, True)[0])
+            target["candidates"] = candidates
+        return target, senses
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         results = list(pool.map(build, LANGS))

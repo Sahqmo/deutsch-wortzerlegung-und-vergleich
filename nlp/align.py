@@ -6,6 +6,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
+from affixes import SUFFIX_GLOSS
 from translator import Translator
 from units import Morpheme, Unit
 
@@ -247,5 +248,54 @@ def align(de_units: list[Unit], t_units: list[Unit], lang: str, tr: Translator, 
                 host["target"] = sorted(set(host["target"]) | set(g["target"]))
                 groups.remove(g)
 
+    flat_de = [m for u in de_units for m in u.morphemes]
+    _refine_parallel_derivations(groups, de_items, t_items, flat_de, flat_t, lang, tr, word)
     groups.sort(key=lambda g: (min(g["de"]) if g["de"] else 10**6, min(g["target"]) if g["target"] else 0))
     return groups, fallback_used, senses
+
+
+def _refine_parallel_derivations(groups, de_items, t_items, flat_de, flat_t, lang, tr, word) -> None:
+    """양쪽이 모두 '어근 + 파생 접미사' 로 된 한 단위이고 단위끼리 짝지어졌으면(Mehr+heit ↔ major+ity), 단위 전체를 한 그룹으로 두지 않고
+    어근끼리 · 접미사끼리 나눠 짝짓는다. 단어 전체의 번역이 같다는 사실만으로 '같은 뜻' 한 그룹이 되면 요소를 비교하지 않은 점수가 되기 때문이다.
+    접미사는 같은 기능(뜻풀이 표지가 같음)이면 same, 아니면 related. 어근은 번역 증거가 있으면 그것을, 없으면 자리 기준 추정(related)."""
+    de_by_idx = {tuple(it.indices): it for it in de_items}
+    t_by_idx = {tuple(it.indices): it for it in t_items}
+    for g in list(groups):
+        if g["relation"] not in ("same", "related") or not g["de"] or not g["target"]:
+            continue
+        d_item, t_item = de_by_idx.get(tuple(g["de"])), t_by_idx.get(tuple(g["target"]))
+        if d_item is None or t_item is None:
+            continue
+        d_suf = [i for i in d_item.indices if flat_de[i].role == "suffix"]
+        t_suf = [i for i in t_item.indices if flat_t[i].role == "suffix"]
+        d_root = [i for i in d_item.indices if flat_de[i].role != "suffix"]
+        t_root = [i for i in t_item.indices if flat_t[i].role != "suffix"]
+        if not d_suf or not t_suf or not d_root or not t_root:
+            continue
+        # 어근 증거: 어근이 하나씩일 때만 번역 신호로 판정한다 (여럿이면 위치 추정)
+        root_relation, root_note = "related", None
+        if len(d_root) == 1 and len(t_root) == 1:
+            dm, tm = flat_de[d_root[0]], flat_t[t_root[0]]
+            d = Item(dm.lemma, "de", [d_root[0]])
+            t = Item(tm.surface, lang, [t_root[0]], ref=tm.lookup_text or tm.lemma, ref_lang=tm.lookup_lang or lang)
+            _fetch_signals(tr, [d], [t], lang, norm(word))
+            sc = _score(d, t, lang)
+            root_relation = {2: "same", 1: "related"}.get(sc, "related")
+            root_note = f"{dm.lemma} ≈ {tm.surface}" if sc == 2 else f"{dm.lemma} ~ {tm.surface} (뜻이 연관됨)" if sc == 1 else None
+        new_groups = [
+            {"de": d_root, "target": t_root, "relation": root_relation,
+             "note": root_note or f"{'·'.join(flat_de[i].surface for i in d_root)} ~ {'·'.join(flat_t[i].surface for i in t_root)} (어근 자리 기준 추정, 뜻은 다를 수 있음)"}
+        ]
+        # 접미사: 바깥쪽(끝)부터 짝짓는다
+        for di, ti in zip(reversed(d_suf), reversed(t_suf)):
+            dg, tg = SUFFIX_GLOSS.get(flat_de[di].lemma), SUFFIX_GLOSS.get(flat_t[ti].lemma)
+            same_fn = bool(dg) and dg == tg
+            new_groups.append({"de": [di], "target": [ti], "relation": "same" if same_fn else "related",
+                               "note": f"{flat_de[di].surface} {'≈' if same_fn else '~'} {flat_t[ti].surface} ({'같은 기능의 ' if same_fn else ''}파생 접미사)"})
+        # 짝이 안 지어진 접미사는 missing / added
+        for di in d_suf[: max(len(d_suf) - len(t_suf), 0)]:
+            new_groups.append({"de": [di], "target": [], "relation": "missing", "note": f"'{flat_de[di].surface}'에 해당하는 접미사가 없음"})
+        for ti in t_suf[: max(len(t_suf) - len(d_suf), 0)]:
+            new_groups.append({"de": [], "target": [ti], "relation": "added", "note": f"독일어에는 없는 접미사 '{flat_t[ti].surface}'"})
+        groups.remove(g)
+        groups.extend(new_groups)

@@ -205,13 +205,32 @@ class TargetTests(unittest.TestCase):
         import targets
 
         cls._orig_lookup = targets.lookup_english
+        cls._orig_affixes = targets.english_affixes
         targets.lookup_english = lambda w: None
+        targets.english_affixes = lambda: ([], [])  # 사전에서 배운 접사도 끄고 정적 표만 시험한다
 
     @classmethod
     def tearDownClass(cls):
         import targets
 
         targets.lookup_english = cls._orig_lookup
+        targets.english_affixes = cls._orig_affixes
+
+    def test_static_prefix_table_works_without_lexicon(self):
+        # re-, con-/com-, dis- 와 그리스·게르만계 접두사가 사전 파일 없이도 동작한다
+        def parts(w):
+            return [m.surface for m in decompose_en(w)[0].morphemes]
+
+        for w, expect in [
+            ("reconstruct", ["re", "construct"]), ("condense", ["con", "dense"]), ("disagree", ["dis", "agree"]),
+            ("underestimate", ["under", "estimate"]), ("nonexistent", ["non", "existent"]), ("multicultural", ["multi", "cultural"]),
+            ("pseudoscience", ["pseudo", "science"]), ("counterproductive", ["counter", "productive"]), ("extraordinary", ["extra", "ordinary"]),
+            ("triangle", ["tri", "angle"]), ("photosynthesis", ["photo", "synthesis"]), ("deactivate", ["de", "activate"]),
+        ]:
+            self.assertEqual(parts(w), expect, w)
+        # 굳어진 흔한 단어와 우연한 일치는 그대로
+        for w in ("international", "exchange", "import", "inch", "image", "combine", "common", "reason", "report"):
+            self.assertEqual(len(parts(w)), 1, w)
 
     def test_hanja_reading(self):
         self.assertEqual(hanja_reading_matches("출발", "出発"), ["出", "発"])
@@ -331,6 +350,38 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class CandidateTests(unittest.TestCase):
+    """한자어의 경계 조합 후보 (화면 쪽에서 점수가 가장 높은 것을 고른다)."""
+
+    def test_compositions(self):
+        from targets import _compositions
+
+        self.assertEqual(_compositions(2), [[(0, 2)], [(0, 1), (1, 2)]])
+        self.assertEqual(len(_compositions(3)), 4)
+        self.assertEqual(len(_compositions(4)), 8)
+        self.assertIn([(0, 1), (1, 3)], _compositions(3))  # 냉 | 장고
+
+    def test_japanese_candidates_cover_all_boundaries(self):
+        from targets import ja_candidates
+
+        cands = [[u.text for u in c] for c in ja_candidates("冷蔵庫")]
+        self.assertIn(["冷", "蔵庫"], cands)
+        self.assertIn(["冷蔵", "庫"], cands)
+        self.assertIn(["冷蔵庫"], cands)
+        self.assertEqual(ja_candidates("ボールペン"), [])  # 한자어가 아니면 후보를 만들지 않는다
+        self.assertEqual(ja_candidates("真空清掃機"), [])  # 5글자 이상은 후보가 너무 많아 만들지 않는다
+
+    def test_korean_candidates_use_hanja(self):
+        from targets import ko_candidates
+
+        tr = GtxTranslator()
+        cands = ko_candidates("냉장고", tr)
+        self.assertIn(["냉", "장고"], [[u.text for u in c] for c in cands])
+        first = next(c for c in cands if [u.text for u in c] == ["냉", "장고"])
+        self.assertEqual(first[1].morphemes[0].lemma, "蔵庫")  # 한자로 번역 조회한다
+        self.assertEqual(ko_candidates("볼펜", tr), [])
+
+
 class MultiWordSinoTests(unittest.TestCase):
     """번역기 호출이 필요한 테스트(캐시가 있으면 오프라인으로도 통과). 단어 경계는 일본어 분석기로 얻는다."""
 
@@ -401,6 +452,26 @@ class AlignmentTests(unittest.TestCase):
         groups, _, _ = align(de, target, "en", NoSignal(), "Lehrer")
         self.assertEqual([g["relation"] for g in groups], ["same"])
         self.assertEqual(groups[0]["target"], [0, 1])
+
+    def test_parallel_derivations_are_aligned_inside_the_unit(self):
+        # Mehr+heit ↔ major+ity : 단위 전체를 '같은 뜻' 한 그룹으로 두지 않고 어근끼리 · 접미사끼리 짝짓는다
+        from align import align
+        from units import Morpheme, Unit
+
+        class NoSignal:
+            def lookup(self, *a, **k):
+                return []
+
+            lookup_pos = lookup
+
+        de = [Unit("Mehrheit", [Morpheme("Mehr", "mehr", role="root"), Morpheme("-heit", "-heit", role="suffix")])]
+        en = [Unit("majority", [Morpheme("major", "major", role="root", lang="en"), Morpheme("-ity", "-ity", role="suffix", lang="en")])]
+        groups, _, _ = align(de, en, "en", NoSignal(), "Mehrheit")
+        self.assertEqual([(g["de"], g["target"], g["relation"]) for g in groups], [([0], [0], "related"), ([1], [1], "same")])
+        # 접미사 기능이 다르면(-heit ↔ -ful) 접미사도 related
+        en2 = [Unit("x", [Morpheme("x", "x", role="root", lang="en"), Morpheme("-ful", "-ful", role="suffix", lang="en")])]
+        g2, _, _ = align(de, en2, "en", NoSignal(), "Mehrheit")
+        self.assertEqual(g2[1]["relation"], "related")
 
     def test_single_sino_word_vs_compound_is_merged_like_hospital(self):
         # hospital 은 한 단어라서 krank+Haus 와 한 그룹이 된다. 한국어 병원·일본어 病院 은 한자 한 글자씩(병|원, 病|院)이라 krank = 病, Haus = 院 으로 짝지어진다
@@ -498,6 +569,24 @@ class PosGlossTests(unittest.TestCase):
 
     def test_adjective_part(self):
         self.assertEqual(self.gloss("Krankenhaus", "krank"), "sick")
+
+
+class NormalizeInputTests(unittest.TestCase):
+    def test_case_follows_part_of_speech(self):
+        from pipeline import normalize_input as n
+
+        # 전부 대문자: 명사는 앞 글자만 대문자, 그 밖에는 전부 소문자
+        self.assertEqual(n("KRANKENHAUS"), "Krankenhaus")
+        self.assertEqual(n("UNVERBINDLICH"), "unverbindlich")
+        self.assertEqual(n("GESUND"), "gesund")
+        self.assertEqual(n("SCHREIBEN"), "schreiben")  # 동사는 명사로 보지 않는다
+        # 전부 소문자인 명사는 앞 글자를 대문자로, 형용사·동사는 그대로
+        self.assertEqual(n("krankenhaus"), "Krankenhaus")
+        self.assertEqual(n("  haus "), "Haus")
+        self.assertEqual(n("unverbindlich"), "unverbindlich")
+        self.assertEqual(n("schreiben"), "schreiben")
+        # 이미 섞여 있으면 손대지 않는다
+        self.assertEqual(n("Krankenhaus"), "Krankenhaus")
 
 
 class UnsplittableWordTests(unittest.TestCase):
