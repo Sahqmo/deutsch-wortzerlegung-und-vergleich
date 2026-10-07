@@ -59,9 +59,12 @@ def decompose_ja(text: str, split_chars: bool = False) -> list[Unit]:
             units[-1].morphemes.append(Morpheme(t.surface, f"-{t.surface}", role="suffix", origin="native", lang="ja"))
             units[-1].text += t.surface
             continue
-        if pos1 in SKIP_POS1:
+        # 구두점·기호만 건너뛴다. UniDic 이 ガンマ 를 '記号'로 분류하는 것처럼, 가타카나·한자·알파벳이 들어 있으면 낱말이라 살린다
+        if pos1 in SKIP_POS1 and not re.search(r"[゠-ヿ一-鿿A-Za-z0-9]", t.surface):
             continue
         origin = GOSHU_ORIGIN.get(getattr(t.feature, "goshu", "") or "", "unknown")
+        if origin == "unknown" and KATAKANA.match(t.surface):
+            origin = "loan"
         role = "suffix" if pos1 == "接尾辞" else "prefix" if pos1 == "接頭辞" else "root"
         surface = t.surface
         if role == "suffix" and units:
@@ -418,6 +421,9 @@ def _kana_skeleton(kana: str) -> str:
         if "LETTER" not in name or "SMALL" in name:
             continue
         syl = name.split()[-1].lower()
+        if syl == "hu":  # フ 는 외래어에서 ㅍ 으로 옮긴다 (ゴルフ = 골프). ハ·ヒ·ヘ·ホ 는 ㅎ
+            out.append("p")
+            continue
         for prefix, cls in (("ch", "c"), ("sh", "s"), ("ts", "t"), ("j", "c"), ("k", "k"), ("g", "k"), ("t", "t"), ("d", "t"),
                             ("p", "p"), ("b", "p"), ("f", "p"), ("v", "p"), ("s", "s"), ("z", "c"), ("h", "h"), ("m", "m"),
                             ("n", "n"), ("r", "r"), ("l", "r")):
@@ -442,19 +448,43 @@ def looks_like_transliteration(korean: str, katakana: str) -> bool:
 
 
 def _split_loan(korean: str, katakana: str) -> list[tuple[str, str]]:
-    """한국어 외래어를 일본어 가타카나 분절(ボール|ペン)의 비율로 나눈다 → [(한국어 조각, 가타카나 조각)]. 못 나누면 통째로."""
+    """한국어 외래어를 일본어 가타카나 분절(ボール|ペン)에 맞춰 나눈다 → [(한국어 조각, 가타카나 조각)]. 못 나누면 통째로.
+    경계는 비율이 아니라 발음 뼈대가 가장 잘 겹치는 위치로 고른다 (스마트폰 = スマート|フォン → 스마트 | 폰, 비율로는 스마 | 트폰)."""
     toks = [t.surface for t in _ja(katakana) if t.surface]
     n = len(toks)
     if n < 2 or len(korean) < n:
         return [(korean, katakana)]
+    skeletons = [_kana_skeleton(t) for t in toks]
+    ko_sk = [_ko_skeleton(ch) for ch in korean]
+
+    def fit(i: int, j: int, k: int) -> int:
+        """korean[i:j] 가 k 번째 가타카나 조각과 얼마나 겹치는가 (겹침 − 남는 글자)"""
+        ks = "".join(ko_sk[i:j])
+        return _lcs(ks, skeletons[k]) * 2 - len(ks) - len(skeletons[k])
+
+    # 조각 수만큼 한국어 글자를 연속 구간으로 나누는 모든 경계 중 합이 가장 큰 것 (동점이면 비율에 가까운 쪽)
     weights = [max(len(t.replace("ー", "").replace("ッ", "")), 1) for t in toks]
     total = sum(weights)
-    cuts, acc = [], 0
+    ideal, acc = [], 0
     for w in weights[:-1]:
         acc += w
-        cuts.append(max(1, min(len(korean) - 1, round(acc / total * len(korean)))))
-    if sorted(set(cuts)) != cuts:
-        return [(korean, katakana)]
+        ideal.append(acc / total * len(korean))
+
+    best: tuple[tuple[int, float], list[int]] | None = None
+
+    def search(k: int, start: int, cuts: list[int], score: int) -> None:
+        nonlocal best
+        if k == n - 1:
+            sc = score + fit(start, len(korean), k)
+            dist = -sum(abs(c - i) for c, i in zip(cuts, ideal))
+            if best is None or (sc, dist) > best[0]:
+                best = ((sc, dist), list(cuts))
+            return
+        for cut in range(start + 1, len(korean) - (n - 1 - k) + 1):
+            search(k + 1, cut, cuts + [cut], score + fit(start, cut, k))
+
+    search(0, 0, [], 0)
+    cuts = best[1] if best else []
     bounds = [0, *cuts, len(korean)]
     return [(korean[bounds[i]:bounds[i + 1]], toks[i]) for i in range(n)]
 
@@ -554,6 +584,54 @@ def ja_candidates(text: str) -> list[list[Unit]]:
 
 
 HANGUL_WORD = re.compile(r"^[가-힣]{2,}$")
+SCRIPT_RUN = re.compile(r"[゠-ヿー]+|[一-鿿々]+")
+
+
+def _try_mixed(form: str, tr: Translator) -> list[Unit] | None:
+    """외래어 + 한자어가 붙은 한국어 낱말(마이크로파, 전자레인지, 컴퓨터실)을 일본어 번역의 가타카나·한자 혼합 표기(マイクロ波)로 나눈다.
+    한자 구간은 한자음 대응(波 = 파)으로, 가타카나 구간은 발음 대응(マイクロ = 마이크로)으로 한글 음절에 붙이고, 둘 다 맞아야 인정한다.
+    한자 판정(_find_hanja)은 모든 글자가 한자여야 해서 이런 혼합 표기에는 실패하고, 외래어 판정(_split_loan)은 순수 가타카나 동의어의
+    경계(マイクロ|ウェーブ)를 비율로 옮겨 엉뚱하게 자른다(마이크|로파) — 그 사이를 메운다."""
+    if not HANGUL_WORD.match(form):
+        return None
+    try:
+        cands = list(tr.lookup(form, "ko", "ja")[:5])
+    except RuntimeError:
+        return None
+    n = len(form)
+    for cand in cands:
+        runs = SCRIPT_RUN.findall(cand)
+        if "".join(runs) != cand:  # 알파벳·숫자·기호가 섞이면 건너뛴다
+            continue
+        is_kata = [bool(KATAKANA.match(r)) for r in runs]
+        if sum(is_kata) != 1 or all(is_kata):
+            continue  # 가타카나 구간이 하나이고 한자 구간이 있어야 글자 수를 나눌 수 있다
+        kanji_syllables = sum(len(r) for r, k in zip(runs, is_kata) if not k)
+        if n - kanji_syllables < 1:
+            continue
+        pos, pieces, ok = 0, [], True
+        for r, k in zip(runs, is_kata):
+            length = n - kanji_syllables if k else len(r)
+            piece = form[pos : pos + length]
+            pos += length
+            if k:
+                ok = looks_like_transliteration(piece, r)
+            else:
+                ok = bool(hanja_reading_matches(piece, r))
+            if not ok:
+                break
+            pieces.append((k, piece, r))
+        if not ok or pos != n:
+            continue
+        units: list[Unit] = []
+        for k, piece, r in pieces:
+            if k:
+                for part, kana in _split_loan(piece, r):
+                    units.append(Unit(part, [Morpheme(part, part, role="root", origin="loan", lang="ko", lookup_text=kana, lookup_lang="ja")]))
+            else:
+                units.extend(_sino_units(piece, r))
+        return units
+    return None
 
 
 def decompose_ko(text: str, tr: Translator) -> list[Unit]:
@@ -596,6 +674,11 @@ def _decompose_ko_chunk(text: str, tr: Translator, split_chars: bool = False) ->
             sino = _try_sino(form, tr, split_chars=split_chars)
             if sino:
                 units.extend(sino)
+                continue
+            # ①-2 외래어 + 한자어 (마이크로파 = 마이크로 + 파)
+            mixed = _try_mixed(form, tr)
+            if mixed:
+                units.extend(mixed)
                 continue
 
         try:

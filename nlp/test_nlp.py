@@ -288,6 +288,13 @@ class TargetTests(unittest.TestCase):
         for w in ("美しい", "明るい"):
             self.assertEqual([u.text for u in decompose_ja(w)], [w])
 
+    def test_japanese_katakana_tagged_as_symbol_is_kept(self):
+        # UniDic 이 ガンマ 를 '記号'로 분류해서 가타카나 단어가 통째로 사라지던 문제
+        self.assertEqual([[m.surface for m in u.morphemes] for u in decompose_ja("ガンマ線")], [["ガンマ", "線"]])
+        self.assertEqual(decompose_ja("ガンマ線")[0].morphemes[0].origin, "loan")
+        # 구두점은 여전히 건너뛴다
+        self.assertEqual([u.text for u in decompose_ja("ボール、ペン")], ["ボール", "ペン"])
+
     def test_japanese_native_and_loan_unchanged(self):
         self.assertEqual([[m.surface for m in u.morphemes] for u in decompose_ja("手袋")], [["手"], ["袋"]])
         self.assertEqual([[m.surface for m in u.morphemes] for u in decompose_ja("ボールペン")], [["ボール"], ["ペン"]])
@@ -403,6 +410,36 @@ class MultiWordSinoTests(unittest.TestCase):
         self.assertEqual(self.groups("병원"), [["병"], ["원"]])
         self.assertEqual(self.groups("출발 시간"), [["출발"], ["시간"]])
         self.assertEqual(self.groups("세탁기"), [["세탁"], ["기"]])
+
+    def test_loan_plus_sino_hybrids_split_by_script(self):
+        # 일본어 번역의 가타카나·한자 혼합 표기(マイクロ波)로 외래어 구간 · 한자 구간을 나눈다. 예전엔 마이크 | 로파 로 갈라졌다
+        for w, expect in [
+            ("마이크로파", [["마이크로"], ["파"]]),
+            ("전자레인지", [["전자"], ["레인지"]]),
+            ("컴퓨터실", [["컴퓨터"], ["실"]]),
+            ("감마선", [["감마"], ["선"]]),
+            ("테니스장", [["테니스"], ["장"]]),
+            ("골프장", [["골프"], ["장"]]),
+        ]:
+            self.assertEqual(self.groups(w), expect, w)
+        us = decompose_ko("마이크로파", self.tr)
+        self.assertEqual([u.morphemes[0].origin for u in us], ["loan", "sino"])
+        self.assertEqual(us[1].morphemes[0].lookup_text, "波")  # 한자로 번역 조회한다
+
+    def test_loan_split_uses_pronunciation_not_proportion(self):
+        from targets import _split_loan
+
+        self.assertEqual(_split_loan("스마트폰", "スマートフォン"), [("스마트", "スマート"), ("폰", "フォン")])
+        self.assertEqual(_split_loan("볼펜", "ボールペン"), [("볼", "ボール"), ("펜", "ペン")])
+        self.assertEqual(_split_loan("마이크로웨이브", "マイクロウェーブ"), [("마이크로", "マイクロ"), ("웨이브", "ウェーブ")])
+        self.assertEqual(_split_loan("핸드백", "ハンドバッグ"), [("핸드백", "ハンドバッグ")])  # 가타카나가 한 덩어리면 그대로
+
+    def test_hybrid_rule_leaves_other_words_alone(self):
+        # 혼합 표기가 아니면(고유어가 섞이거나 순수 외래어) 지금처럼 한 덩어리 / 기존 분석
+        self.assertEqual(self.groups("비닐봉지"), [["비닐봉지"]])
+        self.assertEqual(self.groups("스마트폰"), [["스마트"], ["폰"]])  # 외래어끼리: 발음 뼈대로 경계를 고른다 (예전엔 스마 | 트폰 이 될 뻔했다)
+        self.assertEqual(self.groups("라디오파"), [["라디오"], ["파"]])
+        self.assertEqual(self.groups("프라이팬"), [["프라이팬"]])
 
     def test_adjective_ending_is_suffix(self):
         # 어근이 2글자 한자어면 한자 단위: 무 | 해+한(하+ㄴ), 불 | 쾌+한. -적 은 한자 접미사라 부정 + 적 그대로
