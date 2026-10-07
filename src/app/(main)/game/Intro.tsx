@@ -62,7 +62,7 @@ export function Intro({
           <span className="h1-line pop">상성 진단소</span>
         </h1>
         <p className="lead">
-          독일어 단어를 쪼개 놓고, 영어·한국어·일본어 중 <strong>누가 제일 비슷하게 만들었는지</strong> 퍼센트로 판정해 드려요.
+          독일어 단어를 쪼개 놓고, 영어·한국어·일본어 중 <strong>누가 제일 비슷하게 만들어졌는지</strong> 퍼센트로 판정해 드려요.
         </p>
       </div>
 
