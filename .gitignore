@@ -1,0 +1,10 @@
+node_modules
+.next
+.cache
+.env
+.env.local
+next-env.d.ts
+*.tsbuildinfo
+nlp/.venv
+nlp/translations.sqlite
+__pycache__
