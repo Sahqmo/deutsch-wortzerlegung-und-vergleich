@@ -8,7 +8,7 @@ from compound_split import char_split
 from HanTa import HanoverTagger as ht
 from wordfreq import zipf_frequency
 
-from lexicon import lookup_compound
+from lexicon import lookup_compound, lookup_derivation
 from units import Morpheme, Unit
 
 _tagger = ht.HanoverTagger("morphmodel_ger.pgz")
@@ -248,12 +248,56 @@ def _resolve(stem: str, kind: str, minimum: float, depth: int = 0) -> tuple[list
     return None
 
 
+TRIVIAL_SUFFIXES = {"e", "en", "n", "s", "t", "es"}  # 어미 수준이라 형태소로 떼지 않는다 (Frage = frag + -e 로 만들지 않는다)
+
+
+def _split_by_derivation_lexicon(part: str) -> list[Morpheme] | None:
+    """파생어 사전(Wiktionary 어원)이 '이 단어에는 이 접사가 있다'고 한 것을 먼저 적용한다. 외래 접사(-ismus, -ation, -ator …)나
+    규칙이 놓치는 말(tödlich = Tod + -lich)을 잡는다. 접사를 뗀 어간은 다시 규칙으로 풀어 더 안쪽 접사도 찾는다 (Wissenschaftler → Wissen + -schaft + -ler)."""
+    entry = lookup_derivation(part)
+    if entry is None:
+        return None
+    low = part.lower()
+    pre = [p for p in entry[0] if low.startswith(p)]
+    suf = [x for x in entry[1] if x not in TRIVIAL_SUFFIXES and low.endswith(x)]
+    stem = low
+    used_pre: list[str] = []
+    for p in pre:
+        if stem.startswith(p) and len(stem) - len(p) >= 3:
+            used_pre.append(p)
+            stem = stem[len(p):]
+    used_suf: list[str] = []
+    for x in suf:
+        if stem.endswith(x) and len(stem) - len(x) >= 3:
+            used_suf.append(x)
+            stem = stem[: -len(x)]
+    if not used_pre and not used_suf:
+        return None
+    start = sum(len(p) for p in used_pre)
+    root_surface = part[start : len(part) - sum(len(x) for x in used_suf)]
+    if part[:1].isupper() and used_pre:
+        root_surface = cap(root_surface)
+    inner = split_affixes(root_surface) if len(root_surface) >= 5 else [Morpheme(root_surface, root_surface, role="root", origin="native", lang="de")]
+    if len(inner) == 1 and inner[0].lemma == inner[0].surface:
+        # 어간의 기본형 복원 (Gesell → Geselle). 접미사가 아는 종류(-schaft 는 명사 어간 …)면 그 종류로, 아니면 동사·명사 모두
+        kind = dict(SUFFIX_DATA).get(used_suf[-1], "vn") if used_suf else "vn"
+        resolved = _resolve(root_surface.lower(), kind, 3.0)
+        if resolved and not resolved[0] and resolved[1].lower() != root_surface.lower():
+            inner[0].lemma = resolved[1]
+    out = [Morpheme(p, p, role="prefix", origin="native", lang="de") for p in used_pre] + inner
+    out += [Morpheme(f"-{x}", f"-{x}", role="suffix", origin="native", lang="de") for x in reversed(used_suf)]
+    return out
+
+
 def split_affixes(part: str) -> list[Morpheme]:
     """한 요소(Abfahrt, Verbindung, unverbindlich …)를 접두사들 / 어근 / 접미사들로. 확실할 때만 쪼갠다.
     접미사를 안쪽으로 한두 겹 벗기고(Lehrerin = Lehr + -er + -in), 남은 어간에서 접두사를 벗긴다(un + ver + bind)."""
     low = part.lower()
     if low in LEXICALIZED:
         return [Morpheme(part, part, role="root", origin="native", lang="de")]
+    from_lexicon = _split_by_derivation_lexicon(part)
+    if from_lexicon:
+        return from_lexicon
     stem = low
     suffixes: list[str] = []
     resolved: tuple[list[str], str] | None = None

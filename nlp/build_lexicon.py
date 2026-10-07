@@ -73,6 +73,28 @@ def parse_etymology(text: str | None) -> tuple[list[str], list[str]] | None:
     return parts, links
 
 
+AFFIX_AFTER_KEYWORD = re.compile(
+    r"(?:Derivatem|Präfix|Suffix|Ableitungsmorphem|Derivationsmorphem)(?:\s*\([^)]*\))?\s*(-[A-Za-zäöüß]+|[A-Za-zäöüß]+-)(?![A-Za-zäöüß])"
+)
+
+
+def parse_derivation(text: str | None) -> tuple[list[str], list[str]] | None:
+    """파생어 어원 문장 → (접두사들, 접미사들). 문장 형식이 제각각이라 구성요소는 읽지 않고, 하이픈이 붙은 접사 표기(-ung, ver-)만 뽑는다."""
+    if not text:
+        return None
+    prefixes: list[str] = []
+    suffixes: list[str] = []
+    for m in AFFIX_AFTER_KEYWORD.finditer(text):
+        tok = m.group(1)
+        if tok.startswith("-"):
+            suffixes.append(tok[1:].lower())
+        else:
+            prefixes.append(tok[:-1].lower())
+    prefixes = list(dict.fromkeys(prefixes))
+    suffixes = list(dict.fromkeys(suffixes))
+    return (prefixes, suffixes) if prefixes or suffixes else None
+
+
 # ───────────── 표면형 정렬: 어원의 기본형(Grenze, Kranker)을 입력 단어의 조각(Grenz, Kranken)에 맞춘다 ─────────────
 
 def _norm(s: str) -> str:
@@ -178,19 +200,78 @@ def align_any(word: str, parts: list[str], links: list[str]) -> tuple[list[str],
     return None
 
 
+# 어원 문장이 없거나 못 읽은 단어를 위한 보강. Wiktionary 항목 X 의 '파생어(derived)' 목록에 W 가 있고 W 가 X 로 시작하거나 끝나면,
+# X 가 W 의 한 구성요소이고 나머지가 사전 단어일 때 합성어 W = X + 나머지 로 본다 (정답 표에서 추정한 경계는 거의 전부 맞았다).
+def add_from_derived_lists(con: sqlite3.Connection, rows: list[dict], seen: set[str]) -> int:
+    from german import DERIVATIONAL_TAILS, is_word  # 규칙 쪽의 어휘 검증(wordfreq)을 재사용한다
+
+    parents: dict[str, set[str]] = {}
+    for r in rows:
+        for w in r["derived"] or []:
+            if " " not in w and "-" not in w and len(w) >= 7:
+                parents.setdefault(w, set()).add(r["word"])
+    added = 0
+    for w, ps in parents.items():
+        if w in seen or not w.isalpha():
+            continue
+        lw = w.lower()
+        best: tuple[int, list[str], list[str]] | None = None
+        for p in ps:
+            lp = p.lower()
+            if len(p) < 3 or len(p) >= len(w) - 2 or lp in DERIVATIONAL_TAILS:
+                continue
+            for link in [""] + LINKS:  # 앞 요소가 부모: 부모 + (연결요소) + 나머지
+                rest = w[len(p) + len(link):]
+                if lw.startswith(lp + link) and len(rest) >= 3 and rest.lower() not in DERIVATIONAL_TAILS and is_word(rest, 3.0):
+                    cand = (len(p), [w[: len(p)], rest[:1].upper() + rest[1:] if w[:1].isupper() else rest], [link] if link else [])
+                    if best is None or cand[0] > best[0]:
+                        best = cand
+            if lw.endswith(lp):  # 뒤 요소가 부모: (앞) + (연결요소) + 부모
+                front = w[: len(w) - len(p)]
+                for link in [""] + LINKS:
+                    if link and not front.lower().endswith(link):
+                        continue
+                    f = front[: len(front) - len(link)] if link else front
+                    if len(f) >= 3 and f.lower() not in DERIVATIONAL_TAILS and is_word(f, 3.0):
+                        cand = (len(f), [f, p if p.lower() == w[len(w) - len(p):].lower() else w[len(w) - len(p):]], [link] if link else [])
+                        if best is None or cand[0] > best[0]:
+                            best = cand
+        if best:
+            _, surfaces, used = best
+            con.execute("INSERT INTO compound VALUES (?, ?, ?, ?, ?)", (w, "|".join(surfaces), "|".join(surfaces), ",".join(used), "derived-list"))
+            seen.add(w)
+            added += 1
+    return added
+
+
 def build(parquet_path: Path, db_path: Path) -> None:
     import pyarrow.parquet as pq  # 만들 때만 필요하다
 
-    table = pq.read_table(parquet_path, columns=["word", "morph_type", "etymology_text"])
+    table = pq.read_table(parquet_path, columns=["word", "morph_type", "etymology_text", "derived"])
     rows = table.to_pylist()
     if db_path.exists():
         db_path.unlink()
     con = sqlite3.connect(db_path)
-    con.execute("CREATE TABLE compound (word TEXT PRIMARY KEY, surfaces TEXT NOT NULL, lemmas TEXT NOT NULL, links TEXT NOT NULL)")
+    con.execute("CREATE TABLE compound (word TEXT PRIMARY KEY, surfaces TEXT NOT NULL, lemmas TEXT NOT NULL, links TEXT NOT NULL, source TEXT NOT NULL)")
+    con.execute("CREATE TABLE derivation (word TEXT PRIMARY KEY, prefixes TEXT NOT NULL, suffixes TEXT NOT NULL)")
     con.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
-    stats = {"compound_entries": 0, "unparsed": 0, "unaligned": 0, "stored": 0}
+    stats = {"compound_entries": 0, "unparsed": 0, "unaligned": 0, "stored": 0, "from_derived_lists": 0, "derivation_entries": 0, "derivation_stored": 0}
     seen: set[str] = set()
     for r in rows:
+        if r["morph_type"] == "derivation":
+            stats["derivation_entries"] += 1
+            word = r["word"]
+            d = parse_derivation(r["etymology_text"])
+            if d and " " not in word and "-" not in word:
+                pre, suf = d
+                low = word.lower()
+                # 단어의 앞·뒤에 실제로 붙어 있는 접사만 인정한다 (움라우트 등으로 모양이 바뀐 것은 버린다)
+                pre = [p for p in pre if low.startswith(p) and len(low) - len(p) >= 3]
+                suf = [x for x in suf if low.endswith(x) and len(low) - len(x) >= 3]
+                if pre or suf:
+                    con.execute("INSERT OR IGNORE INTO derivation VALUES (?, ?, ?)", (word, ",".join(pre), ",".join(suf)))
+                    stats["derivation_stored"] += 1
+            continue
         if r["morph_type"] != "compound":
             continue
         stats["compound_entries"] += 1
@@ -208,8 +289,9 @@ def build(parquet_path: Path, db_path: Path) -> None:
             continue
         surfaces, used, parts = aligned
         seen.add(word)
-        con.execute("INSERT INTO compound VALUES (?, ?, ?, ?)", (word, "|".join(surfaces), "|".join(parts), ",".join(used)))
+        con.execute("INSERT INTO compound VALUES (?, ?, ?, ?, ?)", (word, "|".join(surfaces), "|".join(parts), ",".join(used), "etymology"))
         stats["stored"] += 1
+    stats["from_derived_lists"] = add_from_derived_lists(con, rows, seen)
     con.execute(
         "INSERT INTO meta VALUES ('source', 'Wiktionary (de) via yuanxin112/wiktionary-morph, CC-BY-SA-4.0')"
     )

@@ -44,6 +44,14 @@ class LexiconBuildTests(unittest.TestCase):
         self.assertEqual(parse_etymology(et)[0], ["lokal", "Patriotismus"])
         self.assertIsNone(parse_etymology("Ableitung von Wissenschaft mit dem Derivatem -ler"))
 
+    def test_parse_derivation_extracts_only_affix_marks(self):
+        from build_lexicon import parse_derivation
+
+        self.assertEqual(parse_derivation("Ableitung von Wissenschaft mit dem Derivatem -ler"), ([], ["ler"]))
+        self.assertEqual(parse_derivation("Ableitung zu verbindlich mit dem Präfix un-"), (["un"], []))
+        self.assertEqual(parse_derivation("Ableitung zu Verb verschandeln mit dem Suffix (Derivatem) -ung"), ([], ["ung"]))
+        self.assertIsNone(parse_derivation("Konversion des Verbstamms von vergleichen zum Substantiv"))
+
     def test_align_rejects_mismatch(self):
         from build_lexicon import align
 
@@ -65,6 +73,15 @@ class LexiconLookupTests(unittest.TestCase):
         for w in ("Amalgamfüllung", "Teuerungsrate", "Differentialgleichung", "Beregnungsanlage"):
             units, _ = decompose_de(w)
             self.assertEqual(len(units), 2, w)
+
+    def test_derivation_lexicon_adds_foreign_suffixes(self):
+        # 규칙의 접사 표에는 없는 -ismus, -ator 도 사전에 적힌 대로 접미사가 된다
+        for w, suffix in [("Kolonialismus", "-ismus"), ("Initiator", "-ator"), ("Praktikant", "-ant")]:
+            morphs = [m for u in decompose_de(w)[0] for m in u.morphemes]
+            self.assertEqual(morphs[-1].surface, suffix, w)
+            self.assertEqual(morphs[-1].role, "suffix", w)
+        # 어간 기본형 복원은 접미사 종류를 따른다 (-schaft 는 명사 어간)
+        self.assertEqual([m.lemma for m in decompose_de("Gesellschaft")[0][0].morphemes], ["Geselle", "-schaft"])
 
     def test_lexicon_lemma_hint_used(self):
         units, links = decompose_de("Gänsefeder")
@@ -88,7 +105,7 @@ class GermanTests(unittest.TestCase):
         self.assertEqual(lemmas(units), [["Bund"], ["Anwalt", "-schaft"]])
         self.assertEqual(links, ["es"])
         # 이미 잘 풀리던 말이 어간이 짧은 우연한 분해(Mit+Gliedschaft, Nach+Barschaft)로 망가지지 않는다
-        self.assertEqual(lemmas(decompose_de("Mitgliedschaft")[0]), [["Mitglied", "-schaft"]])
+        self.assertEqual(len(decompose_de("Mitgliedschaft")[0]), 1)  # Mit | Gliedschaft 로 갈라지지 않는다 (사전이 있으면 mit + Glied + -schaft)
         self.assertEqual(lemmas(decompose_de("Nachbarschaftshilfe")[0])[0], ["Nachbar", "-schaft"])
 
     def test_affix_tables_split_prefix_and_suffix_stacks(self):

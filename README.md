@@ -62,10 +62,13 @@ cd nlp
 .venv\Scripts\python build_lexicon.py                     # 원본(약 88MB)을 nlp/data/ 에 받고 nlp/lexicon.sqlite 를 만든다
 ```
 
-- 원본은 Hugging Face `yuanxin112/wiktionary-morph`(de, kaikki.org/wiktextract 기반)의 `etymology_text`다. "Determinativkompositum aus den Substantiven Bund und Anwaltschaft sowie dem Fugenelement -es" 같은 문장을 파싱해 구성요소·연결요소를 뽑고(`parse_etymology`), 입력 단어의 표면 조각에 맞춘다(`align`: Grenzkosten → Grenz|Kosten, Gänsefeder → Gäns|Feder). 합성어 4.1만 개 중 약 3.8만 개(91%)가 사전에 들어간다.
-- 사전의 분해는 한 단계라서, 조각을 다시 조회해 더 쪼갠다(`german._split_by_lexicon`). 접두사·접미사는 `SUFFIX_DATA` 접사 표가 계속 맡는다.
+- 원본은 Hugging Face `yuanxin112/wiktionary-morph`(de, kaikki.org/wiktextract 기반)다. 사전에는 세 가지가 들어간다(`nlp/lexicon.sqlite` 약 11MB, 만드는 데 몇 초).
+  1. **합성어 분해 (어원 문장 파싱, 약 3.8만 개):** "Determinativkompositum aus den Substantiven Bund und Anwaltschaft sowie dem Fugenelement -es" 같은 문장에서 구성요소·연결요소를 뽑고(`parse_etymology`), 입력 단어의 표면 조각에 맞춘다(`align`: Grenzkosten → Grenz|Kosten, Gänsefeder → Gäns|Feder). 합성어 4.1만 개 중 91%.
+  2. **합성어 보강 (파생어 목록, 약 7.8만 개, `source = derived-list`):** 어원 문장이 없는 단어는, 항목 X 의 `derived` 목록에 W 가 있고 W 가 X 로 시작하거나 끝나며 나머지가 사전 단어일 때 W = X + 나머지로 본다. 정답 표에서 추정한 경계는 거의 전부 맞았다(711/713). 어원 사전과 겹치면 어원 쪽이 우선한다.
+  3. **파생어 접사 (약 1.2만 개):** 파생어 어원 문장은 형식이 제각각이라 구성요소는 읽지 않고 하이픈 표기 접사(`-ismus`, `ver-`)만 뽑는다(`parse_derivation`). 규칙의 접사 표에 없는 외래 접사(-ismus, -ation, -ator …)나 규칙이 놓치는 말(tödlich = Tod + -lich)을 `split_affixes`가 먼저 적용하고, 접사를 뗀 어간은 다시 규칙으로 풀어 안쪽 접사를 찾는다. `-e`, `-en` 같은 어미 수준 접미사는 떼지 않는다(`TRIVIAL_SUFFIXES`).
+- 사전의 분해는 한 단계라서, 조각을 다시 조회해 더 쪼갠다(`german._split_by_lexicon`). 접두사·접미사의 나머지는 `SUFFIX_DATA` 접사 표가 맡는다.
 - **라이선스:** 원본이 CC-BY-SA-4.0 이라 `lexicon.sqlite` 도 같은 조건(출처 표기 + 동일 조건 공유)을 이어받는다. 저장소에는 넣지 않는다(`.gitignore`). **공개 배포 전에 라이선스를 다시 확인할 것.**
-- 한계: Wiktionary 에 실린 말만 풀린다. 정답 표 단어 중 사전에 있는 비율은 쉬운 집합 41%, 어려운 집합 23% 였다(사전에 있으면 99% 일치하지만, 정답 표가 같은 출처라 정확도의 증거는 아니다).
+- 한계: Wiktionary 에 실린 말만 풀린다. 정답 표 단어 중 사전에 있는 비율은 쉬운 집합 74%, 어려운 집합 40% 였다(사전에 있으면 98~99% 일치하지만, 정답 표가 같은 출처라 정확도의 증거는 아니다). 파생어 접사로 접미사를 떼면 어간의 기본형(`töd` ← Tod)은 못 되살리는 경우가 있다.
 
 ## 쪼갤 수 없는 단어는 진단하지 않는다
 독일어 단어가 형태소 1개(`Zeitung`, `Bibliothek`, `Finger` …)로 판정되면 비교할 짜임이 없어서 어느 언어든 100% 근처가 나온다. 그래서 `nlp/pipeline.py`가 번역기를 부르기 전에 멈추고, `/api/analyze`가 422와 안내 문구(`src/lib/guards.ts`)를 돌려주고, 화면은 로딩 연출을 기다리지 않고 바로 메인으로 돌아와 문구를 보여준다(이전 디자인 `/old`에서는 같은 문구가 그 페이지에 뜬다). 파생어라도 어간+접미사로 쪼개지면(`Gesundheit`) 진단한다. 어휘화된 말(`Zeitung`, `Verein`)과 분해기가 놓친 합성어는 단일 단어로 판정되니, 문구에도 그 가능성을 적어 두었다.

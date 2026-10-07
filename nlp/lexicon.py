@@ -52,3 +52,15 @@ def lookup_compound(word: str) -> CompoundEntry | None:
             surfaces, lemmas, links = row
             return CompoundEntry(tuple(surfaces.split("|")), tuple(lemmas.split("|")), tuple(l for l in links.split(",") if l))
     return None
+
+
+def lookup_derivation(word: str) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """파생어 사전: Wiktionary 어원에 적힌 (접두사들, 접미사들). 구성요소는 읽지 않고 접사만 쓴다. 없으면 None."""
+    con = _connection()
+    if con is None:
+        return None
+    for key in dict.fromkeys([word, word[:1].upper() + word[1:], word[:1].lower() + word[1:]]):
+        row = con.execute("SELECT prefixes, suffixes FROM derivation WHERE word = ?", (key,)).fetchone()
+        if row:
+            return tuple(x for x in row[0].split(",") if x), tuple(x for x in row[1].split(",") if x)
+    return None
