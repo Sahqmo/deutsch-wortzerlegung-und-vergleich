@@ -31,13 +31,36 @@ export const AlignmentGroupSchema = z.object({
   note: z.string().describe("한국어 한 줄 설명"),
 });
 
-export const TargetResultSchema = z.object({
+const TargetBaseSchema = z.object({
   lang: z.enum(LANGS),
   found: z.boolean().describe("대응어가 하나라도 적절히 존재하는가"),
+  label: z.string().optional().describe("이 분석의 경계 표기. 예: 냉 | 장고"),
   decomposition: DecompositionSchema,
   alignment: z.array(AlignmentGroupSchema),
   confidence: z.enum(["high", "medium", "low"]),
   comment: z.string().describe("재미 요소가 되는 한국어 한두 문장 코멘트"),
+});
+
+/** 여러 후보 분석 중 무엇이 선택됐는지 (선택은 점수 공식이 있는 select.ts 가 한다) */
+export const SelectionSchema = z.object({
+  label: z.string().describe("선택된 분석의 경계 표기"),
+  isDefault: z.boolean().describe("기본 분석이 그대로 선택됐는가"),
+  defaultLabel: z.string(),
+  defaultTotal: z.number().describe("기본 분석의 총점"),
+  options: z.array(
+    z.object({
+      label: z.string(),
+      total: z.number(),
+      chosen: z.boolean(),
+      excluded: z.boolean().optional().describe("쪼개지 않은 한 덩어리라서 선택에서 제외된 후보"),
+    }),
+  ),
+});
+
+export const TargetResultSchema = TargetBaseSchema.extend({
+  /** 분석 서비스가 만든 다른 분석 후보(한자어의 경계 조합 등). 선택 뒤에는 비워진다 */
+  candidates: z.array(TargetBaseSchema).optional(),
+  selection: SelectionSchema.optional(),
 });
 
 export const AnalysisSchema = z.object({
@@ -51,6 +74,8 @@ export type Morpheme = z.infer<typeof MorphemeSchema>;
 export type Decomposition = z.infer<typeof DecompositionSchema>;
 export type AlignmentGroup = z.infer<typeof AlignmentGroupSchema>;
 export type TargetResult = z.infer<typeof TargetResultSchema>;
+export type TargetBase = z.infer<typeof TargetBaseSchema>;
+export type Selection = z.infer<typeof SelectionSchema>;
 export type Analysis = z.infer<typeof AnalysisSchema>;
 export type Lang = (typeof LANGS)[number];
 export type Origin = (typeof ORIGINS)[number];

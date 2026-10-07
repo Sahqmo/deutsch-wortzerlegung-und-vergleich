@@ -3,6 +3,7 @@ import { DEMO_WORDS, findDemo } from "@/lib/demo";
 import { isUnsplittable, unsplittableMessage } from "@/lib/guards";
 import { analyzeWord, nlpAlive, NlpFailedError, NlpUnavailableError } from "@/lib/nlp-client";
 import { scoreAnalysis } from "@/lib/score";
+import { selectBestTargets } from "@/lib/select";
 import type { Analysis, AnalyzeResponse } from "@/lib/schema";
 
 export const runtime = "nodejs";
@@ -25,8 +26,10 @@ function rateLimited(ip: string): boolean {
   return limited;
 }
 
-const respond = (analysis: Analysis, source: AnalyzeResponse["source"]) =>
-  NextResponse.json<AnalyzeResponse>({ analysis, scores: scoreAnalysis(analysis), source });
+const respond = (raw: Analysis, source: AnalyzeResponse["source"]) => {
+  const analysis = selectBestTargets(raw); // 언어별 분석 후보 중 가장 잘 맞는 것을 고른다
+  return NextResponse.json<AnalyzeResponse>({ analysis, scores: scoreAnalysis(analysis), source });
+};
 
 const fail = (message: string, status: number, extra: Record<string, unknown> = {}) =>
   NextResponse.json({ error: message, ...extra }, { status });

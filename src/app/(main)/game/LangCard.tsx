@@ -61,12 +61,15 @@ export function LangCard({
   target,
   score,
   rank,
+  tied,
   index,
 }: {
   de: Decomposition;
   target: TargetResult;
   score: ScoreBreakdown;
-  rank: number;
+  /** 공동 순위(같은 퍼센트면 같은 순위). 대응어를 못 찾았으면 null */
+  rank: number | null;
+  tied: boolean;
   index: number;
 }) {
   const [open, setOpen] = useState(rank === 1);
@@ -77,7 +80,7 @@ export function LangCard({
   return (
     <article className={`lcard tone-${found ? grade.tone : "gray"}${open ? " is-open" : ""}`} style={{ animationDelay: `${index * 120}ms` }}>
       <button type="button" className="lcard-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span className={`rank-badge${rank === 1 && found ? " rank-1" : ""}`}>{found ? `${rank}위` : "—"}</span>
+        <span className={`rank-badge${rank === 1 && found ? " rank-1" : ""}`}>{found && rank ? `${tied ? "공동 " : ""}${rank}위` : "—"}</span>
         <span className="lcard-lang">
           <span className="lang-code">{LANG_CODE[target.lang]}</span>
           <span className="lang-name">{LANG_LABEL[target.lang]}</span>
@@ -104,6 +107,11 @@ export function LangCard({
                   <h3 className="grade-title">{grade.title}</h3>
                   <p className="grade-de">{grade.de}</p>
                   <p className="grade-line">{grade.line}</p>
+                  {target.selection && !target.selection.isDefault && (
+                    <p className="conf pick" title={target.selection.options.map((o) => `${o.label} ${o.total}%${o.excluded ? " (한 덩어리라 제외)" : ""}`).join(" · ")}>
+                      ◇ 가장 잘 맞는 분석: {target.selection.label} (기본 {target.selection.defaultLabel} {target.selection.defaultTotal}% → {score.total}%)
+                    </p>
+                  )}
                   {target.confidence !== "high" && (
                     <p className="conf">⚠ 자동 추정 · 신뢰도 {target.confidence === "medium" ? "보통" : "낮음"}</p>
                   )}

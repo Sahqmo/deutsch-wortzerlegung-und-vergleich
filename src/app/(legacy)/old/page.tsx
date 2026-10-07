@@ -112,9 +112,13 @@ export default function Home() {
                   })
                   // 가장 유사한 언어부터. 대응어를 못 찾은 언어는 맨 뒤. 동점이면 en·ko·ja 순서 유지.
                   .sort((a, b) => Number(b.t.found) - Number(a.t.found) || b.score.total - a.score.total)
-                  .map(({ t, score }, i) => (
-                    <ResultCard key={t.lang} de={analysis.de} target={t} score={score} rank={t.found ? i + 1 : undefined} />
-                  ))}
+                  .map(({ t, score }, _i, all) => {
+                    // 같은 퍼센트면 공동 순위 (1·1·3)
+                    const found = all.filter((x) => x.t.found);
+                    const place = 1 + found.filter((x) => x.score.total > score.total).length;
+                    const tied = found.filter((x) => x.score.total === score.total).length > 1;
+                    return <ResultCard key={t.lang} de={analysis.de} target={t} score={score} rank={t.found ? place : undefined} tied={t.found && tied} />;
+                  })}
               </div>
               <p className="legend">
                 같은 색 칩끼리 서로 대응하는 요소예요. 점선 칩은 상대 언어에 대응이 없는 요소예요. 출처:{" "}

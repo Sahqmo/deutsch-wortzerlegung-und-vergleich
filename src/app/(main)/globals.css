@@ -607,6 +607,7 @@ code { font-size: 0.85em; padding: 1px 6px; border-radius: 6px; background: colo
   border-radius: 999px;
 }
 .rank-1 { color: #16181d; background: var(--gold); border-color: var(--gold); }
+.conf.pick { color: var(--ink); opacity: .85; }
 .lcard-lang { display: flex; flex-direction: column; line-height: 1.15; }
 .lang-code { font-family: var(--font-din); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.18em; color: var(--muted); }
 .lang-name { font-weight: 700; }

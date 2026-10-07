@@ -1,0 +1,487 @@
+{
+ "input": "Waschmaschine",
+ "isGermanWord": true,
+ "de": {
+  "word": "Waschmaschine",
+  "kind": "compound",
+  "morphemes": [
+   {
+    "surface": "Wasch",
+    "lemma": "wasch",
+    "gloss": "wash",
+    "role": "root",
+    "origin": "native"
+   },
+   {
+    "surface": "Maschine",
+    "lemma": "Maschine",
+    "gloss": "machine",
+    "role": "root",
+    "origin": "native"
+   }
+  ],
+  "linking": []
+ },
+ "targets": [
+  {
+   "lang": "en",
+   "found": true,
+   "label": "washing | machine",
+   "decomposition": {
+    "word": "washing machine",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "wash",
+      "lemma": "wash",
+      "gloss": "",
+      "role": "root",
+      "origin": "native"
+     },
+     {
+      "surface": "-ing",
+      "lemma": "-ing",
+      "gloss": "~하는 것",
+      "role": "suffix",
+      "origin": "native"
+     },
+     {
+      "surface": "machine",
+      "lemma": "machine",
+      "gloss": "",
+      "role": "root",
+      "origin": "native"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0,
+      1
+     ],
+     "relation": "related",
+     "note": "Wasch ~ washing (뜻이 연관됨)"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [
+      2
+     ],
+     "relation": "same",
+     "note": "Maschine ≈ machine"
+    }
+   ],
+   "confidence": "high",
+   "comment": "일부 요소는 뜻이 달라서 짜임이 완전히 같지는 않아요."
+  },
+  {
+   "lang": "ko",
+   "found": true,
+   "label": "세탁 | 기",
+   "decomposition": {
+    "word": "세탁기",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "세탁",
+      "lemma": "洗濯",
+      "gloss": "washing",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "기",
+      "lemma": "機",
+      "gloss": "loom",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0
+     ],
+     "relation": "same",
+     "note": "Wasch ≈ 세탁"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [
+      1
+     ],
+     "relation": "same",
+     "note": "Maschine ≈ 기"
+    }
+   ],
+   "confidence": "high",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "세탁기",
+     "decomposition": {
+      "word": "세탁기",
+      "kind": "simplex",
+      "morphemes": [
+       {
+        "surface": "세탁기",
+        "lemma": "洗濯機",
+        "gloss": "washing machine",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "독일어의 여러 요소가 '세탁기' 하나로 합쳐짐"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "대응어가 하나로 굳은 단일어라 독일어처럼 요소를 쌓아 만든 말이 아니에요."
+    },
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "세 | 탁기",
+     "decomposition": {
+      "word": "세탁기",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "세",
+        "lemma": "洗",
+        "gloss": "wash",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "탁기",
+        "lemma": "濯機",
+        "gloss": "washing machine",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Wasch ≈ 세"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        1
+       ],
+       "relation": "related",
+       "note": "Maschine ~ 탁기 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "세 | 탁 | 기",
+     "decomposition": {
+      "word": "세탁기",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "세",
+        "lemma": "洗",
+        "gloss": "wash",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "탁",
+        "lemma": "濯",
+        "gloss": "washing",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "기",
+        "lemma": "機",
+        "gloss": "loom",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Wasch ≈ 세"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        2
+       ],
+       "relation": "same",
+       "note": "Maschine ≈ 기"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '탁'"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    }
+   ]
+  },
+  {
+   "lang": "ja",
+   "found": true,
+   "label": "洗濯 | 機",
+   "decomposition": {
+    "word": "洗濯機",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "洗濯",
+      "lemma": "洗濯",
+      "gloss": "washing",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "機",
+      "lemma": "機",
+      "gloss": "loom",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0
+     ],
+     "relation": "same",
+     "note": "Wasch ≈ 洗濯"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [
+      1
+     ],
+     "relation": "same",
+     "note": "Maschine ≈ 機"
+    }
+   ],
+   "confidence": "high",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "洗濯機",
+     "decomposition": {
+      "word": "洗濯機",
+      "kind": "simplex",
+      "morphemes": [
+       {
+        "surface": "洗濯機",
+        "lemma": "洗濯機",
+        "gloss": "washing machine",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "독일어의 여러 요소가 '洗濯機' 하나로 합쳐짐"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "대응어가 하나로 굳은 단일어라 독일어처럼 요소를 쌓아 만든 말이 아니에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "洗 | 濯機",
+     "decomposition": {
+      "word": "洗濯機",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "洗",
+        "lemma": "洗",
+        "gloss": "wash",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "濯機",
+        "lemma": "濯機",
+        "gloss": "washing machine",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Wasch ≈ 洗"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        1
+       ],
+       "relation": "related",
+       "note": "Maschine ~ 濯機 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "洗 | 濯 | 機",
+     "decomposition": {
+      "word": "洗濯機",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "洗",
+        "lemma": "洗",
+        "gloss": "wash",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "濯",
+        "lemma": "濯",
+        "gloss": "washing",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "機",
+        "lemma": "機",
+        "gloss": "loom",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Wasch ≈ 洗"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        2
+       ],
+       "relation": "same",
+       "note": "Maschine ≈ 機"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '濯'"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    }
+   ]
+  }
+ ]
+}

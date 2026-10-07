@@ -1,3 +1,4 @@
+import { competitionRanks, tiedFlags } from "@/lib/rank";
 import type { Lang, ScoreBreakdown } from "@/lib/schema";
 
 export const LANG_LABEL: Record<Lang, string> = { en: "영어", ko: "한국어", ja: "일본어" };
@@ -54,12 +55,23 @@ export interface Ranked {
   score: ScoreBreakdown;
 }
 
-/** 가장 유사한 언어부터. 대응어를 못 찾은 언어는 맨 뒤. 동점이면 en·ko·ja 순서 유지. */
-export function rank<T extends { lang: Lang; found: boolean }>(items: T[], scores: ScoreBreakdown[]): (T & { score: ScoreBreakdown })[] {
-  return items
+/**
+ * 가장 유사한 언어부터. 대응어를 못 찾은 언어는 맨 뒤. 동점이면 en·ko·ja 순서 유지.
+ * place 는 공동 순위(같은 퍼센트면 같은 순위, 1·1·3), tied 는 공동 순위 여부. 못 찾은 언어는 place 가 null.
+ */
+export function rank<T extends { lang: Lang; found: boolean }>(
+  items: T[],
+  scores: ScoreBreakdown[],
+): (T & { score: ScoreBreakdown; place: number | null; tied: boolean })[] {
+  const sorted = items
     .flatMap((t) => {
       const score = scores.find((s) => s.lang === t.lang);
       return score ? [{ ...t, score }] : [];
     })
     .sort((a, b) => Number(b.found) - Number(a.found) || b.score.total - a.score.total);
+  const totals = sorted.filter((r) => r.found).map((r) => r.score.total);
+  const places = competitionRanks(totals);
+  const tied = tiedFlags(totals);
+  let k = 0;
+  return sorted.map((r) => (r.found ? { ...r, place: places[k], tied: tied[k++] } : { ...r, place: null, tied: false }));
 }

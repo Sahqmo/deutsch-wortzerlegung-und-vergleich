@@ -1,0 +1,324 @@
+{
+ "input": "Mehrheit",
+ "isGermanWord": true,
+ "de": {
+  "word": "Mehrheit",
+  "kind": "derived",
+  "morphemes": [
+   {
+    "surface": "Mehr",
+    "lemma": "Mehr",
+    "gloss": "more",
+    "role": "root",
+    "origin": "native"
+   },
+   {
+    "surface": "-heit",
+    "lemma": "-heit",
+    "gloss": "성질(명사화)",
+    "role": "suffix",
+    "origin": "native"
+   }
+  ],
+  "linking": []
+ },
+ "targets": [
+  {
+   "lang": "en",
+   "found": true,
+   "label": "majority",
+   "decomposition": {
+    "word": "majority",
+    "kind": "derived",
+    "morphemes": [
+     {
+      "surface": "major",
+      "lemma": "major",
+      "gloss": "",
+      "role": "root",
+      "origin": "native"
+     },
+     {
+      "surface": "-ity",
+      "lemma": "-ity",
+      "gloss": "성질(명사화)",
+      "role": "suffix",
+      "origin": "native"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0,
+      1
+     ],
+     "target": [
+      0,
+      1
+     ],
+     "relation": "same",
+     "note": "Mehrheit ≈ majority"
+    }
+   ],
+   "confidence": "high",
+   "comment": "요소끼리 뜻이 일대일로 대응해요."
+  },
+  {
+   "lang": "ko",
+   "found": true,
+   "label": "다 | 수",
+   "decomposition": {
+    "word": "다수",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "다",
+      "lemma": "多",
+      "gloss": "many",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "수",
+      "lemma": "数",
+      "gloss": "number",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0,
+      1
+     ],
+     "target": [
+      0,
+      1
+     ],
+     "relation": "same",
+     "note": "독일어 'Mehrheit'가 대응어에서는 여러 요소로 나뉨 (뜻은 같음)"
+    }
+   ],
+   "confidence": "medium",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "다수",
+     "decomposition": {
+      "word": "다수",
+      "kind": "simplex",
+      "morphemes": [
+       {
+        "surface": "다수",
+        "lemma": "多数",
+        "gloss": "majority",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Mehrheit ≈ 다수"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    }
+   ]
+  },
+  {
+   "lang": "ja",
+   "found": true,
+   "label": "過 | 半数",
+   "decomposition": {
+    "word": "過半数",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "過",
+      "lemma": "過",
+      "gloss": "past",
+      "role": "prefix",
+      "origin": "sino"
+     },
+     {
+      "surface": "半数",
+      "lemma": "半数",
+      "gloss": "half the number",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0,
+      1
+     ],
+     "target": [
+      0,
+      1
+     ],
+     "relation": "same",
+     "note": "독일어 'Mehrheit'가 대응어에서는 여러 요소로 나뉨 (뜻은 같음)"
+    }
+   ],
+   "confidence": "medium",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "過半数",
+     "decomposition": {
+      "word": "過半数",
+      "kind": "simplex",
+      "morphemes": [
+       {
+        "surface": "過半数",
+        "lemma": "過半数",
+        "gloss": "majority",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Mehrheit ≈ 過半数"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "過半 | 数",
+     "decomposition": {
+      "word": "過半数",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "過半",
+        "lemma": "過半",
+        "gloss": "greater part",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "数",
+        "lemma": "数",
+        "gloss": "number",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Mehrheit ≈ 過半"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '数'"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "過 | 半 | 数",
+     "decomposition": {
+      "word": "過半数",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "過",
+        "lemma": "過",
+        "gloss": "past",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "半",
+        "lemma": "半",
+        "gloss": "half",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "数",
+        "lemma": "数",
+        "gloss": "number",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0,
+        1,
+        2
+       ],
+       "relation": "same",
+       "note": "독일어 'Mehrheit'가 대응어에서는 여러 요소로 나뉨 (뜻은 같음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    }
+   ]
+  }
+ ]
+}

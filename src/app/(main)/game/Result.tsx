@@ -10,6 +10,7 @@ export function Result({ data, onAgain }: { data: AnalyzeResponse; onAgain: () =
   const ranked = rank(analysis.targets, scores);
   const winners = ranked.filter((r) => r.found);
   const best = winners[0];
+  const tops = winners.filter((w) => w.place === 1); // 공동 1위면 여럿
   const [copied, setCopied] = useState(false);
 
   const podium = winners.length >= 3 ? [winners[1], winners[0], winners[2]] : winners.length === 2 ? [winners[1], winners[0]] : winners;
@@ -18,7 +19,7 @@ export function Result({ data, onAgain }: { data: AnalyzeResponse; onAgain: () =
     const lines = [
       `독일어 합성어 상성 진단소`,
       `「${analysis.de.word}」 (${analysis.de.morphemes.map((m) => m.lemma).join(" + ")})`,
-      ...winners.map((w, i) => `${i + 1}위 ${LANG_LABEL[w.lang]} ${w.decomposition.word} — ${w.score.total}% ${gradeOf(w.score.total).title}`),
+      ...winners.map((w) => `${w.tied ? "공동 " : ""}${w.place}위 ${LANG_LABEL[w.lang]} ${w.decomposition.word} — ${w.score.total}% ${gradeOf(w.score.total).title}`),
       `${location.origin}/?w=${encodeURIComponent(analysis.de.word)}`,
     ];
     try {
@@ -59,8 +60,9 @@ export function Result({ data, onAgain }: { data: AnalyzeResponse; onAgain: () =
               ★
             </span>
             <p>
-              가장 닮은 언어는 <strong>{LANG_LABEL[best.lang]}</strong>
-              <span className="winner-word"> {best.decomposition.word}</span>
+              가장 닮은 언어는 <strong>{tops.map((w) => LANG_LABEL[w.lang]).join(" · ")}</strong>
+              {tops.length > 1 && " (공동 1위)"}
+              <span className="winner-word"> {tops.map((w) => w.decomposition.word).join(" / ")}</span>
             </p>
             <p className="winner-grade">
               {best.score.total}% · {gradeOf(best.score.total).title} · {gradeOf(best.score.total).de}
@@ -69,7 +71,7 @@ export function Result({ data, onAgain }: { data: AnalyzeResponse; onAgain: () =
 
           <div className="podium" aria-label="순위">
             {podium.map((p) => {
-              const r = winners.indexOf(p) + 1;
+              const r = p.place ?? 3;
               return (
                 <div key={p.lang} className={`pod pod-${r}`}>
                   <span className="pod-pct">{p.score.total}%</span>
@@ -88,7 +90,7 @@ export function Result({ data, onAgain }: { data: AnalyzeResponse; onAgain: () =
 
       <div className="cards">
         {ranked.map((t, i) => (
-          <LangCard key={t.lang} de={analysis.de} target={t} score={t.score} rank={i + 1} index={i} />
+          <LangCard key={t.lang} de={analysis.de} target={t} score={t.score} rank={t.place} tied={t.tied} index={i} />
         ))}
       </div>
 

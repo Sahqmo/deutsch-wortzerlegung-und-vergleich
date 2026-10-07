@@ -1,0 +1,500 @@
+{
+ "input": "Kühlschrank",
+ "isGermanWord": true,
+ "de": {
+  "word": "Kühlschrank",
+  "kind": "compound",
+  "morphemes": [
+   {
+    "surface": "Kühl",
+    "lemma": "kühl",
+    "gloss": "cool",
+    "role": "root",
+    "origin": "native"
+   },
+   {
+    "surface": "Schrank",
+    "lemma": "Schrank",
+    "gloss": "cabinet",
+    "role": "root",
+    "origin": "native"
+   }
+  ],
+  "linking": []
+ },
+ "targets": [
+  {
+   "lang": "en",
+   "found": true,
+   "label": "refrigerator",
+   "decomposition": {
+    "word": "refrigerator",
+    "kind": "simplex",
+    "morphemes": [
+     {
+      "surface": "refrigerator",
+      "lemma": "refrigerator",
+      "gloss": "",
+      "role": "root",
+      "origin": "native"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0
+     ],
+     "relation": "related",
+     "note": "Kühl ~ refrigerator (뜻이 연관됨)"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [],
+     "relation": "missing",
+     "note": "'Schrank'에 해당하는 요소가 없음"
+    }
+   ],
+   "confidence": "high",
+   "comment": "대응어가 하나로 굳은 단일어라 독일어처럼 요소를 쌓아 만든 말이 아니에요."
+  },
+  {
+   "lang": "ko",
+   "found": true,
+   "label": "냉장고",
+   "decomposition": {
+    "word": "냉장고",
+    "kind": "derived",
+    "morphemes": [
+     {
+      "surface": "냉장",
+      "lemma": "冷蔵",
+      "gloss": "refrigeration",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "고",
+      "lemma": "庫",
+      "gloss": "warehouse",
+      "role": "suffix",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0,
+      1
+     ],
+     "relation": "related",
+     "note": "Kühl ~ 냉장고 (뜻이 연관됨)"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [],
+     "relation": "missing",
+     "note": "'Schrank'에 해당하는 요소가 없음"
+    }
+   ],
+   "confidence": "high",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "냉 | 장고",
+     "decomposition": {
+      "word": "냉장고",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "냉",
+        "lemma": "冷",
+        "gloss": "cold",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "장고",
+        "lemma": "蔵庫",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Kühl ≈ 냉"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        1
+       ],
+       "relation": "related",
+       "note": "Schrank ~ 장고 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "냉장 | 고",
+     "decomposition": {
+      "word": "냉장고",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "냉장",
+        "lemma": "冷蔵",
+        "gloss": "refrigeration",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "고",
+        "lemma": "庫",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "Kühl ~ 냉장 (뜻이 연관됨)"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        1
+       ],
+       "relation": "related",
+       "note": "Schrank ~ 고 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "냉 | 장 | 고",
+     "decomposition": {
+      "word": "냉장고",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "냉",
+        "lemma": "冷",
+        "gloss": "cold",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "장",
+        "lemma": "蔵",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "고",
+        "lemma": "庫",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Kühl ≈ 냉"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        2
+       ],
+       "relation": "related",
+       "note": "Schrank ~ 고 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '장'"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    }
+   ]
+  },
+  {
+   "lang": "ja",
+   "found": true,
+   "label": "冷蔵庫",
+   "decomposition": {
+    "word": "冷蔵庫",
+    "kind": "derived",
+    "morphemes": [
+     {
+      "surface": "冷蔵",
+      "lemma": "冷蔵",
+      "gloss": "refrigeration",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "庫",
+      "lemma": "庫",
+      "gloss": "warehouse",
+      "role": "suffix",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0,
+      1
+     ],
+     "relation": "related",
+     "note": "Kühl ~ 冷蔵庫 (뜻이 연관됨)"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [],
+     "relation": "missing",
+     "note": "'Schrank'에 해당하는 요소가 없음"
+    }
+   ],
+   "confidence": "high",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "冷 | 蔵庫",
+     "decomposition": {
+      "word": "冷蔵庫",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "冷",
+        "lemma": "冷",
+        "gloss": "cold",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "蔵庫",
+        "lemma": "蔵庫",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Kühl ≈ 冷"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        1
+       ],
+       "relation": "related",
+       "note": "Schrank ~ 蔵庫 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "冷蔵 | 庫",
+     "decomposition": {
+      "word": "冷蔵庫",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "冷蔵",
+        "lemma": "冷蔵",
+        "gloss": "refrigeration",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "庫",
+        "lemma": "庫",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "Kühl ~ 冷蔵 (뜻이 연관됨)"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        1
+       ],
+       "relation": "related",
+       "note": "Schrank ~ 庫 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "冷 | 蔵 | 庫",
+     "decomposition": {
+      "word": "冷蔵庫",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "冷",
+        "lemma": "冷",
+        "gloss": "cold",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "蔵",
+        "lemma": "蔵",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "庫",
+        "lemma": "庫",
+        "gloss": "warehouse",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Kühl ≈ 冷"
+      },
+      {
+       "de": [
+        1
+       ],
+       "target": [
+        2
+       ],
+       "relation": "related",
+       "note": "Schrank ~ 庫 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '蔵'"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    }
+   ]
+  }
+ ]
+}

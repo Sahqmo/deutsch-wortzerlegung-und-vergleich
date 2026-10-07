@@ -1,0 +1,624 @@
+{
+ "input": "Abfahrtszeit",
+ "isGermanWord": true,
+ "de": {
+  "word": "Abfahrtszeit",
+  "kind": "compound",
+  "morphemes": [
+   {
+    "surface": "ab",
+    "lemma": "ab",
+    "gloss": "away / off",
+    "role": "prefix",
+    "origin": "native"
+   },
+   {
+    "surface": "Fahrt",
+    "lemma": "Fahrt",
+    "gloss": "ride",
+    "role": "root",
+    "origin": "native"
+   },
+   {
+    "surface": "Zeit",
+    "lemma": "Zeit",
+    "gloss": "time",
+    "role": "root",
+    "origin": "native"
+   }
+  ],
+  "linking": [
+   "s"
+  ]
+ },
+ "targets": [
+  {
+   "lang": "en",
+   "found": true,
+   "label": "departure | time",
+   "decomposition": {
+    "word": "departure time",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "de",
+      "lemma": "de",
+      "gloss": "off / down",
+      "role": "prefix",
+      "origin": "native"
+     },
+     {
+      "surface": "part",
+      "lemma": "part",
+      "gloss": "",
+      "role": "root",
+      "origin": "native"
+     },
+     {
+      "surface": "-ure",
+      "lemma": "-ure",
+      "gloss": "명사화",
+      "role": "suffix",
+      "origin": "native"
+     },
+     {
+      "surface": "time",
+      "lemma": "time",
+      "gloss": "",
+      "role": "root",
+      "origin": "native"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0,
+      1
+     ],
+     "target": [
+      0,
+      1,
+      2
+     ],
+     "relation": "same",
+     "note": "Abfahrt ≈ departure"
+    },
+    {
+     "de": [
+      2
+     ],
+     "target": [
+      3
+     ],
+     "relation": "same",
+     "note": "Zeit ≈ time"
+    }
+   ],
+   "confidence": "high",
+   "comment": "요소끼리 뜻이 일대일로 대응해요."
+  },
+  {
+   "lang": "ko",
+   "found": true,
+   "label": "출발 | 시간",
+   "decomposition": {
+    "word": "출발 시간",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "출발",
+      "lemma": "出発",
+      "gloss": "departure",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "시간",
+      "lemma": "時間",
+      "gloss": "time",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0,
+      1
+     ],
+     "target": [
+      0
+     ],
+     "relation": "same",
+     "note": "Abfahrt ≈ 출발"
+    },
+    {
+     "de": [
+      2
+     ],
+     "target": [
+      1
+     ],
+     "relation": "same",
+     "note": "Zeit ≈ 시간"
+    }
+   ],
+   "confidence": "high",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": []
+  },
+  {
+   "lang": "ja",
+   "found": true,
+   "label": "出発 | 時刻",
+   "decomposition": {
+    "word": "出発時刻",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "出発",
+      "lemma": "出発",
+      "gloss": "departure",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "時刻",
+      "lemma": "時刻",
+      "gloss": "time",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0,
+      1
+     ],
+     "target": [
+      0
+     ],
+     "relation": "same",
+     "note": "Abfahrt ≈ 出発"
+    },
+    {
+     "de": [
+      2
+     ],
+     "target": [
+      1
+     ],
+     "relation": "same",
+     "note": "Zeit ≈ 時刻"
+    }
+   ],
+   "confidence": "high",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "出発時刻",
+     "decomposition": {
+      "word": "出発時刻",
+      "kind": "simplex",
+      "morphemes": [
+       {
+        "surface": "出発時刻",
+        "lemma": "出発時刻",
+        "gloss": "departure time",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1,
+        2
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "독일어의 여러 요소가 '出発時刻' 하나로 합쳐짐"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "대응어가 하나로 굳은 단일어라 독일어처럼 요소를 쌓아 만든 말이 아니에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "出 | 発時刻",
+     "decomposition": {
+      "word": "出発時刻",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "出",
+        "lemma": "出",
+        "gloss": "out",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "発時刻",
+        "lemma": "発時刻",
+        "gloss": "departure time",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Abfahrt ≈ 出"
+      },
+      {
+       "de": [
+        2
+       ],
+       "target": [
+        1
+       ],
+       "relation": "related",
+       "note": "Zeit ~ 発時刻 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "出 | 発 | 時刻",
+     "decomposition": {
+      "word": "出発時刻",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "出",
+        "lemma": "出",
+        "gloss": "out",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "発",
+        "lemma": "発",
+        "gloss": "departure",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "時刻",
+        "lemma": "時刻",
+        "gloss": "time",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Abfahrt ≈ 出"
+      },
+      {
+       "de": [
+        2
+       ],
+       "target": [
+        2
+       ],
+       "relation": "same",
+       "note": "Zeit ≈ 時刻"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '発'"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "出発時 | 刻",
+     "decomposition": {
+      "word": "出発時刻",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "出発時",
+        "lemma": "出発時",
+        "gloss": "at departure",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "刻",
+        "lemma": "刻",
+        "gloss": "time",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "Abfahrt ~ 出発時 (수식어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+      },
+      {
+       "de": [
+        2
+       ],
+       "target": [
+        1
+       ],
+       "relation": "same",
+       "note": "Zeit ≈ 刻"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "出 | 発時 | 刻",
+     "decomposition": {
+      "word": "出発時刻",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "出",
+        "lemma": "出",
+        "gloss": "out",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "発時",
+        "lemma": "発時",
+        "gloss": "at the time of issue",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "刻",
+        "lemma": "刻",
+        "gloss": "time",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Abfahrt ≈ 出"
+      },
+      {
+       "de": [
+        2
+       ],
+       "target": [
+        2
+       ],
+       "relation": "same",
+       "note": "Zeit ≈ 刻"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '発時'"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "出発 | 時 | 刻",
+     "decomposition": {
+      "word": "出発時刻",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "出発",
+        "lemma": "出発",
+        "gloss": "departure",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "時",
+        "lemma": "時",
+        "gloss": "time",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "刻",
+        "lemma": "刻",
+        "gloss": "time",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Abfahrt ≈ 出発"
+      },
+      {
+       "de": [
+        2
+       ],
+       "target": [
+        2
+       ],
+       "relation": "same",
+       "note": "Zeit ≈ 刻"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '時'"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    },
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "出 | 発 | 時 | 刻",
+     "decomposition": {
+      "word": "出発時刻",
+      "kind": "compound",
+      "morphemes": [
+       {
+        "surface": "出",
+        "lemma": "出",
+        "gloss": "out",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "発",
+        "lemma": "発",
+        "gloss": "departure",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "時",
+        "lemma": "時",
+        "gloss": "time",
+        "role": "root",
+        "origin": "sino"
+       },
+       {
+        "surface": "刻",
+        "lemma": "刻",
+        "gloss": "time",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "same",
+       "note": "Abfahrt ≈ 出"
+      },
+      {
+       "de": [
+        2
+       ],
+       "target": [
+        2
+       ],
+       "relation": "same",
+       "note": "Zeit ≈ 時"
+      },
+      {
+       "de": [],
+       "target": [
+        1
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '発'"
+      },
+      {
+       "de": [],
+       "target": [
+        3
+       ],
+       "relation": "added",
+       "note": "독일어에는 없는 요소 '刻'"
+      }
+     ],
+     "confidence": "high",
+     "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요."
+    }
+   ]
+  }
+ ]
+}

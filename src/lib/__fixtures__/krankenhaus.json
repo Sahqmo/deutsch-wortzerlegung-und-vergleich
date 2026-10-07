@@ -1,0 +1,235 @@
+{
+ "input": "Krankenhaus",
+ "isGermanWord": true,
+ "de": {
+  "word": "Krankenhaus",
+  "kind": "compound",
+  "morphemes": [
+   {
+    "surface": "Krank",
+    "lemma": "krank",
+    "gloss": "sick",
+    "role": "root",
+    "origin": "native"
+   },
+   {
+    "surface": "Haus",
+    "lemma": "Haus",
+    "gloss": "house",
+    "role": "root",
+    "origin": "native"
+   }
+  ],
+  "linking": [
+   "en"
+  ]
+ },
+ "targets": [
+  {
+   "lang": "en",
+   "found": true,
+   "label": "hospital",
+   "decomposition": {
+    "word": "hospital",
+    "kind": "simplex",
+    "morphemes": [
+     {
+      "surface": "hospital",
+      "lemma": "hospital",
+      "gloss": "",
+      "role": "root",
+      "origin": "native"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0,
+      1
+     ],
+     "target": [
+      0
+     ],
+     "relation": "related",
+     "note": "독일어의 여러 요소가 'hospital' 하나로 합쳐짐"
+    }
+   ],
+   "confidence": "medium",
+   "comment": "대응어가 하나로 굳은 단일어라 독일어처럼 요소를 쌓아 만든 말이 아니에요."
+  },
+  {
+   "lang": "ko",
+   "found": true,
+   "label": "병 | 원",
+   "decomposition": {
+    "word": "병원",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "병",
+      "lemma": "病",
+      "gloss": "disease",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "원",
+      "lemma": "院",
+      "gloss": "infirmary",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0
+     ],
+     "relation": "related",
+     "note": "Krank ~ 병 (뜻이 연관됨)"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [
+      1
+     ],
+     "relation": "related",
+     "note": "Haus ~ 원 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+    }
+   ],
+   "confidence": "medium",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ko",
+     "found": true,
+     "label": "병원",
+     "decomposition": {
+      "word": "병원",
+      "kind": "simplex",
+      "morphemes": [
+       {
+        "surface": "병원",
+        "lemma": "病院",
+        "gloss": "hospital",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "독일어의 여러 요소가 '병원' 하나로 합쳐짐"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "대응어가 하나로 굳은 단일어라 독일어처럼 요소를 쌓아 만든 말이 아니에요."
+    }
+   ]
+  },
+  {
+   "lang": "ja",
+   "found": true,
+   "label": "病 | 院",
+   "decomposition": {
+    "word": "病院",
+    "kind": "compound",
+    "morphemes": [
+     {
+      "surface": "病",
+      "lemma": "病",
+      "gloss": "disease",
+      "role": "root",
+      "origin": "sino"
+     },
+     {
+      "surface": "院",
+      "lemma": "院",
+      "gloss": "infirmary",
+      "role": "root",
+      "origin": "sino"
+     }
+    ],
+    "linking": []
+   },
+   "alignment": [
+    {
+     "de": [
+      0
+     ],
+     "target": [
+      0
+     ],
+     "relation": "related",
+     "note": "Krank ~ 病 (뜻이 연관됨)"
+    },
+    {
+     "de": [
+      1
+     ],
+     "target": [
+      1
+     ],
+     "relation": "related",
+     "note": "Haus ~ 院 (핵심어 자리 기준 추정, 어원·뜻은 다를 수 있음)"
+    }
+   ],
+   "confidence": "medium",
+   "comment": "한자 형태소로 쪼개 보면 독일어처럼 뜻 요소를 쌓은 말이에요.",
+   "candidates": [
+    {
+     "lang": "ja",
+     "found": true,
+     "label": "病院",
+     "decomposition": {
+      "word": "病院",
+      "kind": "simplex",
+      "morphemes": [
+       {
+        "surface": "病院",
+        "lemma": "病院",
+        "gloss": "hospital",
+        "role": "root",
+        "origin": "sino"
+       }
+      ],
+      "linking": []
+     },
+     "alignment": [
+      {
+       "de": [
+        0,
+        1
+       ],
+       "target": [
+        0
+       ],
+       "relation": "related",
+       "note": "독일어의 여러 요소가 '病院' 하나로 합쳐짐"
+      }
+     ],
+     "confidence": "medium",
+     "comment": "대응어가 하나로 굳은 단일어라 독일어처럼 요소를 쌓아 만든 말이 아니에요."
+    }
+   ]
+  }
+ ]
+}

@@ -77,11 +77,13 @@ export function ResultCard({
   target,
   score,
   rank,
+  tied,
 }: {
   de: Decomposition;
   target: TargetResult;
   score: ScoreBreakdown;
   rank?: number;
+  tied?: boolean;
 }) {
   const colors = groupColors(score);
   const tone = score.total >= 80 ? "high" : score.total >= 55 ? "mid" : "low";
@@ -89,7 +91,7 @@ export function ResultCard({
   return (
     <article className="card">
       <header className="card-head">
-        {rank !== undefined && <span className={`rank${rank === 1 ? " rank-top" : ""}`}>{rank}위</span>}
+        {rank !== undefined && <span className={`rank${rank === 1 ? " rank-top" : ""}`}>{tied ? "공동 " : ""}{rank}위</span>}
         <h3>{LANG_LABEL[target.lang]}</h3>
         {target.confidence !== "high" && (
           <span className="warn">자동 분석 추정 · 신뢰도 {target.confidence === "medium" ? "보통" : "낮음"}</span>
@@ -138,6 +140,7 @@ export function ResultCard({
 export function Summary({ analysis, scores }: { analysis: Analysis; scores: ScoreBreakdown[] }) {
   const found = scores.filter((s) => s.found);
   const best = found.length ? found.reduce((a, b) => (b.total > a.total ? b : a)) : null;
+  const tops = best ? found.filter((s) => s.total === best.total) : []; // 공동 1위면 여럿
   const top = best && analysis.targets.find((t) => t.lang === best.lang);
   return (
     <section className="summary">
@@ -151,7 +154,8 @@ export function Summary({ analysis, scores }: { analysis: Analysis; scores: Scor
       </div>
       {top && best && (
         <p className="muted">
-          가장 닮은 언어: <strong>{LANG_LABEL[top.lang]}</strong> ({top.decomposition.word}) — {best.total}%
+          가장 닮은 언어: <strong>{tops.map((s) => LANG_LABEL[s.lang]).join(" · ")}</strong>
+          {tops.length > 1 ? " (공동 1위)" : ` (${top.decomposition.word})`} — {best.total}%
         </p>
       )}
     </section>
