@@ -21,8 +21,15 @@ const RELATION_SCORE = { same: 1, related: 0.5, added: 0, missing: 0 } as const;
 
 /** 짝지어진 파생 접미사(-er ↔ 사)가 있을 때 구조 점수에 얹는 가산점 최대치 */
 const PARALLEL_SUFFIX_BONUS = 10;
+/**
+ * 독일어 쪽에 파생 접미사가 있는데 짝지어진 대응어 쪽엔 접미사가 없을 때(Gesund+heit ↔ health, Schreib+er ↔ 펜)
+ * 구조 점수에서 빼는 최대치. 뜻이 같다는 것은 의미 점수가 이미 반영하고, 짜임(요소 수)이 다르다는 점만 조금 깎는다.
+ * 반대 방향(대응어에만 접미사)은 한자 접미사(庫·機)처럼 분석기의 분류 탓인 경우가 많아서 깎지 않는다.
+ */
+const SUFFIX_MISMATCH_PENALTY = 10;
 
 const round = (n: number) => Math.round(n * 10) / 10;
+const LANG_NAME = { en: "영어", ko: "한국어", ja: "일본어" } as const;
 
 /**
  * 구조 점수 계산용 "단위 수": 어근과 접두사만 센다(접미사는 파생 표지라 제외).
@@ -101,6 +108,7 @@ export function scoreTarget(de: Decomposition, target: TargetResult): ScoreBreak
     origin: 0,
     total: 0,
     groups,
+    structureNotes: [],
   };
   if (!target.found || groups.length === 0) return empty;
 
@@ -122,10 +130,30 @@ export function scoreTarget(de: Decomposition, target: TargetResult): ScoreBreak
     deSuffixGroups.length === 0
       ? 0
       : deSuffixGroups.filter((g) => hasSuffix(tm, g.target)).length / deSuffixGroups.length;
-  const structure = Math.min(
-    100,
-    100 * (0.7 * countMatch + 0.3 * orderScore(groups)) + PARALLEL_SUFFIX_BONUS * parallel,
-  );
+  // 짝지어진 그룹 중 독일어에만 접미사가 있는 비율만큼 감점
+  const pairedGroups = groups.filter((g) => g.de.length > 0 && g.target.length > 0);
+  const suffixOnlyInDe =
+    pairedGroups.length === 0
+      ? 0
+      : pairedGroups.filter((g) => hasSuffix(de.morphemes, g.de) && !hasSuffix(tm, g.target)).length / pairedGroups.length;
+  const clamp = (n: number) => Math.max(0, Math.min(100, n));
+  const withoutPenalty = 100 * (0.7 * countMatch + 0.3 * orderScore(groups)) + PARALLEL_SUFFIX_BONUS * parallel;
+  const structure = clamp(withoutPenalty - SUFFIX_MISMATCH_PENALTY * suffixOnlyInDe);
+
+  // 감점 설명: 가산점으로 상한(100)에 걸려 실제로 덜 깎였으면 그만큼만 말한다
+  const structureNotes: string[] = [];
+  const effective = clamp(withoutPenalty) - structure;
+  const nominal = SUFFIX_MISMATCH_PENALTY * suffixOnlyInDe;
+  if (effective >= 0.05 && nominal > 0) {
+    const perGroup = (SUFFIX_MISMATCH_PENALTY / pairedGroups.length) * (effective / nominal);
+    const points = Number(perGroup.toFixed(1));
+    for (const g of pairedGroups.filter((g) => hasSuffix(de.morphemes, g.de) && !hasSuffix(tm, g.target))) {
+      const names = (ms: Morpheme[], idx: number[]) => idx.map((i) => ms[i]?.surface ?? "").join(" + ");
+      structureNotes.push(
+        `독일어 「${names(de.morphemes, g.de)}」(${g.de.length}파츠)는 ${LANG_NAME[target.lang]} 「${names(tm, g.target)}」(${g.target.length}파츠)보다 파츠가 많아서, 구조 점수를 ${points}점 정도 깎았어요. (뜻이 같은 건 의미 점수에 따로 반영돼요)`,
+      );
+    }
+  }
 
   // 의미: same 1, related 0.5, added/missing 0 의 평균
   const meaning =
@@ -152,6 +180,7 @@ export function scoreTarget(de: Decomposition, target: TargetResult): ScoreBreak
     origin: round(origin),
     total: Math.round(total),
     groups,
+    structureNotes,
   };
 }
 

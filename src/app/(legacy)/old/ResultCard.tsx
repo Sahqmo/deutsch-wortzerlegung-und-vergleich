@@ -132,7 +132,16 @@ export function ResultCard({
         </>
       )}
 
-      {target.comment && <p className="comment">💬 {target.comment}</p>}
+      {(target.comment || score.structureNotes.length > 0) && (
+        <p className="comment">
+          {target.comment && <>💬 {target.comment}</>}
+          {score.structureNotes.map((n, i) => (
+            <span key={i} style={{ display: "block", marginTop: 6, fontSize: "0.9em", opacity: 0.85 }}>
+              ▽ {n}
+            </span>
+          ))}
+        </p>
+      )}
     </article>
   );
 }

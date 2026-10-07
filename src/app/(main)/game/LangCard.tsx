@@ -127,7 +127,17 @@ export function LangCard({
               <p className="board-title">블록 맞추기 <span className="de-tag">Bausteine</span> · 위: 독일어 / 아래: {LANG_LABEL[target.lang]}</p>
               <BlockLanes de={de} target={target.decomposition} score={score} />
 
-              {target.comment && <p className="bubble">{target.comment}</p>}
+              {(target.comment || score.structureNotes.length > 0) && (
+                <p className="bubble">
+                  {target.comment}
+                  {/* 구조 점수를 조정한 이유는 코멘트 아래 새 줄에 붙인다 */}
+                  {score.structureNotes.map((n, i) => (
+                    <span key={i} className="bubble-note">
+                      ▽ {n}
+                    </span>
+                  ))}
+                </p>
+              )}
 
               <details className="why">
                 <summary>왜 이렇게 나왔어?</summary>

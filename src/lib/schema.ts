@@ -90,6 +90,8 @@ export interface ScoreBreakdown {
   total: number;
   /** 누락된 요소를 added/missing 으로 채워 넣은, 실제 점수 계산에 쓰인 정렬 */
   groups: AlignmentGroup[];
+  /** 구조 점수를 조정한 이유 (예: 파츠 수가 달라서 조금 깎음). 조정이 없으면 빈 배열 */
+  structureNotes: string[];
 }
 
 export interface AnalyzeResponse {

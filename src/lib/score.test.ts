@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_ANALYSES, findDemo } from "./demo";
 import { normalizeAlignment, scoreAnalysis, scoreTarget } from "./score";
-import { AnalysisSchema } from "./schema";
+import { AnalysisSchema, type TargetResult } from "./schema";
 
 const kugel = findDemo("Kugelschreiber")!;
 const byLang = (a = kugel) => Object.fromEntries(scoreAnalysis(a).map((s) => [s.lang, s]));
 
 describe("scoring (설계.md 검산 예시)", () => {
-  it("Kugelschreiber ↔ 볼펜 = 76% (구조는 같지만 외래어)", () => {
+  it("Kugelschreiber ↔ 볼펜 = 74% (요소 수는 같지만 외래어, -er 에 해당하는 접미사가 없어 구조 -5)", () => {
     const ko = byLang().ko;
-    expect(ko.structure).toBe(100);
+    expect(ko.structure).toBe(95);
     expect(ko.meaning).toBe(75);
     expect(ko.origin).toBe(30);
-    expect(ko.total).toBe(76);
+    expect(ko.total).toBe(74);
   });
 
-  it("Kugelschreiber ↔ ballpoint pen = 71% (point 가 추가됨)", () => {
+  it("Kugelschreiber ↔ ballpoint pen = 69% (point 가 추가됨, 접미사 없음 -5)", () => {
     const en = byLang().en;
-    expect(en.structure).toBeCloseTo(76.7, 1);
+    expect(en.structure).toBeCloseTo(71.7, 1);
     expect(en.meaning).toBe(50);
     expect(en.origin).toBe(100);
-    expect(en.total).toBe(71);
+    expect(en.total).toBe(69);
   });
 
   it("볼펜이 ballpoint pen 보다 높다", () => {
@@ -115,7 +115,8 @@ describe("파생 접미사 평행성 · 한자어 토박이력", () => {
     const sEn = scoreTarget(de, en);
     const sKo = scoreTarget(de, ko);
     expect(sKo.structure).toBeGreaterThan(sEn.structure);
-    expect(sKo.structure - sEn.structure).toBeCloseTo(10, 1);
+    // 가산점 +10(평행) 과 감점 -10(대응어에 접미사 없음)의 차이
+    expect(sKo.structure - sEn.structure).toBeCloseTo(20, 1);
   });
 
   it("대응어에 접미사가 없다고 감점하지는 않는다", () => {
@@ -138,5 +139,79 @@ describe("파생 접미사 평행성 · 한자어 토박이력", () => {
 
   it("한국어 간호사가 영어 nurse 보다 높게 나온다", () => {
     expect(scoreTarget(de, ko).total).toBeGreaterThan(scoreTarget(de, en).total);
+  });
+});
+
+describe("독일어에만 있는 파생 접미사 (뜻이 같아도 짜임은 조금 다르다)", () => {
+  // Gesund + -heit ↔ health : 뜻은 같지만 독일어는 2개 요소, 영어는 1개
+  const de = {
+    word: "Gesundheit",
+    kind: "derived" as const,
+    linking: [],
+    morphemes: [
+      { surface: "Gesund", lemma: "gesund", gloss: "healthy", role: "root" as const, origin: "native" as const },
+      { surface: "-heit", lemma: "-heit", gloss: "성질(명사화)", role: "suffix" as const, origin: "native" as const },
+    ],
+  };
+  const health: TargetResult = {
+    lang: "en",
+    found: true,
+    confidence: "high",
+    comment: "",
+    decomposition: {
+      word: "health",
+      kind: "simplex",
+      linking: [],
+      morphemes: [{ surface: "health", lemma: "health", gloss: "", role: "root", origin: "native" }],
+    },
+    alignment: [{ de: [0, 1], target: [0], relation: "same", note: "" }],
+  };
+
+  it("뜻은 그대로 100, 구조만 깎인다", () => {
+    const s = scoreTarget(de, health);
+    expect(s.meaning).toBe(100);
+    expect(s.structure).toBe(90);
+    expect(s.total).toBe(96);
+  });
+
+  it("감점에는 이유가 붙는다 (파츠 수가 달라서 조금 깎음)", () => {
+    const s = scoreTarget(de, health);
+    expect(s.structureNotes).toHaveLength(1);
+    expect(s.structureNotes[0]).toContain("Gesund + -heit");
+    expect(s.structureNotes[0]).toContain("health");
+    expect(s.structureNotes[0]).toContain("2파츠");
+    expect(s.structureNotes[0]).toContain("1파츠");
+    expect(s.structureNotes[0]).toContain("10점");
+  });
+
+  it("감점이 없으면 설명도 없다", () => {
+    const withSuffix = structuredClone(health);
+    withSuffix.decomposition.morphemes = [
+      { surface: "heal", lemma: "heal", gloss: "", role: "root", origin: "native" },
+      { surface: "-th", lemma: "-th", gloss: "", role: "suffix", origin: "native" },
+    ];
+    withSuffix.alignment = [{ de: [0, 1], target: [0, 1], relation: "same", note: "" }];
+    expect(scoreTarget(de, withSuffix).structureNotes).toEqual([]);
+  });
+
+  it("대응어에도 접미사가 짝지어지면 깎지 않는다", () => {
+    const withSuffix = structuredClone(health);
+    withSuffix.decomposition.morphemes = [
+      { surface: "heal", lemma: "heal", gloss: "", role: "root", origin: "native" },
+      { surface: "-th", lemma: "-th", gloss: "", role: "suffix", origin: "native" },
+    ];
+    withSuffix.alignment = [{ de: [0, 1], target: [0, 1], relation: "same", note: "" }];
+    expect(scoreTarget(de, withSuffix).structure).toBe(100);
+  });
+
+  it("대응어에만 접미사가 있는 경우(한자 접미사 등)는 깎지 않는다", () => {
+    const de2 = { ...de, morphemes: [de.morphemes[0]] };
+    const t = structuredClone(health);
+    t.decomposition.morphemes = [
+      { surface: "冷蔵", lemma: "冷蔵", gloss: "", role: "root", origin: "sino" },
+      { surface: "庫", lemma: "庫", gloss: "", role: "suffix", origin: "sino" },
+    ];
+    t.alignment = [{ de: [0], target: [0, 1], relation: "same", note: "" }];
+    expect(scoreTarget(de2, t).structure).toBe(100);
   });
 });
