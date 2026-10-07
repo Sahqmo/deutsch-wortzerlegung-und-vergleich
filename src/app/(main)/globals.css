@@ -1,8 +1,8 @@
 /* ───────── 독일어 합성어 상성 진단소 — 차분한 모던 + 독일풍(DIN 활자 · 바우하우스 도형 · 흑·적·금) ───────── */
 
 :root {
-  --bg: #f5f3ee;
-  --bg-soft: #efece5;
+  --bg: #faf9f6;
+  --bg-soft: #f4f2ed;
   --paper: #ffffff;
   --ink: #16181d;
   --muted: #666b75;
@@ -238,8 +238,8 @@ code { font-size: 0.85em; padding: 1px 6px; border-radius: 6px; background: colo
   padding: 0 2px;
 }
 
-.lead { margin: 16px 0 28px; font-size: 1.02rem; max-width: 34em; color: color-mix(in srgb, var(--ink) 82%, transparent); }
-.lead strong { color: var(--ink); background: linear-gradient(transparent 62%, color-mix(in srgb, var(--gold) 50%, transparent) 62%); }
+.lead { margin: 16px 0 28px; font-size: 1.02rem; max-width: 42em; color: color-mix(in srgb, var(--ink) 82%, transparent); word-break: keep-all; overflow-wrap: break-word; }
+.lead strong { white-space: nowrap; color: var(--ink); background: linear-gradient(transparent 62%, color-mix(in srgb, var(--gold) 50%, transparent) 62%); }
 
 .slot {
   padding: 20px;
@@ -452,11 +452,9 @@ code { font-size: 0.85em; padding: 1px 6px; border-radius: 6px; background: colo
   align-items: center;
   gap: 12px;
   padding: 9px 4px;
-  border-bottom: 1px solid var(--line);
   color: var(--muted);
   transition: color 0.3s ease;
 }
-.step:last-child { border-bottom: none; }
 .step-mark {
   display: grid;
   place-items: center;
@@ -546,6 +544,7 @@ code { font-size: 0.85em; padding: 1px 6px; border-radius: 6px; background: colo
 }
 .winner-word { font-weight: 800; }
 .winner-grade { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.3; }
+.winner-de { font-size: 0.62em; font-weight: 600; letter-spacing: 0.02em; opacity: 0.55; margin-left: 0.35em; }
 
 .podium { display: flex; justify-content: center; align-items: flex-end; gap: 12px; margin: 0 0 30px; padding: 0 8px; }
 .pod { flex: 1; max-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
@@ -607,6 +606,7 @@ code { font-size: 0.85em; padding: 1px 6px; border-radius: 6px; background: colo
   border-radius: 999px;
 }
 .rank-1 { color: #16181d; background: var(--gold); border-color: var(--gold); }
+.bubble-note { display: block; margin-top: 6px; font-size: 0.85em; opacity: 0.8; }
 .conf.pick { color: var(--ink); opacity: .85; }
 .lcard-lang { display: flex; flex-direction: column; line-height: 1.15; }
 .lang-code { font-family: var(--font-din); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.18em; color: var(--muted); }
@@ -814,6 +814,8 @@ code { font-size: 0.85em; padding: 1px 6px; border-radius: 6px; background: colo
 
 /* ───────── 반응형 ───────── */
 
+/* 좁은 화면에서는 줄바꿈을 강제하지 않고 자연스럽게 흐르게 한다 */
+@media (max-width: 640px) { .lead-br { display: none; } }
 @media (max-width: 520px) {
   .frame { padding-top: 28px; }
   .slot-row { flex-direction: column; }

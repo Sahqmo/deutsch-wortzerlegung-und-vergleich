@@ -65,7 +65,8 @@ export function Result({ data, onAgain }: { data: AnalyzeResponse; onAgain: () =
               <span className="winner-word"> {tops.map((w) => w.decomposition.word).join(" / ")}</span>
             </p>
             <p className="winner-grade">
-              {best.score.total}% · {gradeOf(best.score.total).title} · {gradeOf(best.score.total).de}
+              {best.score.total}% · {gradeOf(best.score.total).title}{" "}
+              <span className="winner-de">{gradeOf(best.score.total).de}</span>
             </p>
           </div>
 

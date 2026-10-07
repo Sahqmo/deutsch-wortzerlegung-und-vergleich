@@ -62,7 +62,8 @@ export function Intro({
           <span className="h1-line pop">상성 진단소</span>
         </h1>
         <p className="lead">
-          독일어 단어를 쪼개 놓고, 영어·한국어·일본어 중 <strong>누가 제일 비슷하게 만들어졌는지</strong> 퍼센트로 판정해 드려요.
+          독일어 단어를 쪼개 놓고, 영어·한국어·일본어 중 <strong>누가 제일 비슷하게 만들어졌는지</strong>
+          <br className="lead-br" /> 퍼센트로 판정해 드려요.
         </p>
       </div>
 
@@ -101,11 +102,11 @@ export function Intro({
       </form>
 
       <div className="stage-pick">
-        <p className="mini-title">스테이지 선택 <span className="de-tag">Stufe wählen</span></p>
+        <p className="mini-title">예시 단어 <span className="de-tag">Beispiele</span></p>
         <div className="stage-list">
           {examples.map((ex, i) => (
             <button key={ex} type="button" className="btn btn-stage" onClick={() => onStart(ex)}>
-              <span className="stage-no">STUFE {i + 1}</span>
+              <span className="stage-no">BEISPIEL {i + 1}</span>
               <span className="stage-word">{ex}</span>
             </button>
           ))}
@@ -114,7 +115,7 @@ export function Intro({
 
       {demoMode && (
         <p className="note-bar">
-          지금은 데모 모드예요. 분석 서비스가 꺼져 있어서 위 스테이지 단어만 진단돼요. <code>run.bat</code>으로 실행하면 아무 단어나 돼요.
+          지금은 데모 모드예요. 분석 서비스가 꺼져 있어서 위 예시 단어만 진단돼요. <code>run.bat</code>으로 실행하면 아무 단어나 돼요.
         </p>
       )}
 
