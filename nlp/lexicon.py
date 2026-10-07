@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "lexicon.sqlite"
+DB_PATH = Path(os.environ.get("LEXICON_PATH") or Path(__file__).parent / "lexicon.sqlite")  # 개발·테스트에서 다른 파일을 쓰려면 LEXICON_PATH
 
 
 @dataclass(frozen=True)
@@ -64,3 +65,40 @@ def lookup_derivation(word: str) -> tuple[tuple[str, ...], tuple[str, ...]] | No
         if row:
             return tuple(x for x in row[0].split(",") if x), tuple(x for x in row[1].split(",") if x)
     return None
+
+
+def lookup_english(word: str) -> list[list[tuple[str, str, str]]] | None:
+    """영어 분해 사전: 단위(unit)별 형태소 (표면, 기본형, 역할) 목록. 없으면 None. 영어판 Wiktionary 어원에서 만든다."""
+    con = _connection()
+    if con is None:
+        return None
+    try:
+        row = con.execute("SELECT spec FROM en_entry WHERE word = ?", (word.lower(),)).fetchone()
+    except sqlite3.OperationalError:  # 영어 사전 없이 만든 파일
+        return None
+    if not row:
+        return None
+    import json
+
+    return [[tuple(m) for m in unit] for unit in json.loads(row[0])]
+
+
+_en_affix_cache: tuple[list[tuple[str, int]], list[tuple[str, int]]] | None = None
+
+
+def english_affixes() -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
+    """영어 사전에서 배운 (접두사, 접미사) 목록: [(접사, 등장 횟수)] 를 횟수 내림차순으로. 사전이 없으면 빈 목록."""
+    global _en_affix_cache
+    if _en_affix_cache is not None:
+        return _en_affix_cache
+    pre: list[tuple[str, int]] = []
+    suf: list[tuple[str, int]] = []
+    con = _connection()
+    if con is not None:
+        try:
+            for affix, role, n in con.execute("SELECT affix, role, n FROM en_affix ORDER BY n DESC"):
+                (pre if role == "prefix" else suf).append((affix, n))
+        except sqlite3.OperationalError:
+            pass
+    _en_affix_cache = (pre, suf)
+    return _en_affix_cache

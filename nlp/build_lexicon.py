@@ -23,6 +23,7 @@ HERE = Path(__file__).parent
 DATA_DIR = HERE / "data"
 DB_PATH = HERE / "lexicon.sqlite"
 PARQUET_URL = "https://huggingface.co/datasets/yuanxin112/wiktionary-morph/resolve/main/de/train-00000-of-00001.parquet"
+PARQUET_URL_EN = "https://huggingface.co/datasets/yuanxin112/wiktionary-morph/resolve/main/en/train-00000-of-00001.parquet"
 
 LINKS = ["ens", "es", "en", "er", "s", "n", "e"]
 
@@ -244,13 +245,195 @@ def add_from_derived_lists(con: sqlite3.Connection, rows: list[dict], seen: set[
     return added
 
 
-def build(parquet_path: Path, db_path: Path) -> None:
+# ───────────── 영어 ─────────────
+# 영어판 Wiktionary 어원 문장의 "From fearful + -ness." 와 구조화된 decomposition 필드에서 단어 → 접두사·어근·접미사를 얻는다.
+
+EN_CLAUSE = re.compile(r"\b(?:From|Compound of|Blend of|Derived from|Equivalent to|Formed from)\s+([^.]*?\s\+[^.]*?)(?:\.|$)")
+
+
+EN_INFLECTION_SUFFIXES = {"-ed", "-s", "-es", "-d", "-n", "-est", "-ing-"}
+
+
+def _en_clean(s: str) -> str:
+    return s.replace("‎", "").replace("‏", "")
+
+
+def parse_en_etymology(text: str | None) -> list[str] | None:
+    """영어 어원 문장 → 토큰 목록(['fearful', '-ness'], ['di-', 'ketone']). 'A + B' 꼴이 아니거나 낱말이 아닌 것이 섞이면 None."""
+    for m in EN_CLAUSE.finditer(_en_clean(text or "")):
+        toks = [re.sub(r"\s*\(.*?\)", "", t).strip() for t in m.group(1).split("+")]
+        if 2 <= len(toks) <= 4 and all(re.fullmatch(r"-?[A-Za-z][A-Za-z'-]*-?", t) for t in toks):
+            return toks
+    return None
+
+
+def en_tokens_from_decomposition(d: dict | None) -> list[str] | None:
+    """구조화된 decomposition({base, affixes, parts}) → 토큰 목록. 접두사 → 어근 → 접미사 순서."""
+    if not d:
+        return None
+    if d.get("parts") and len(d["parts"]) >= 2:
+        return list(d["parts"])
+    if d.get("base") and d.get("affixes"):
+        pre = [a for a in d["affixes"] if a.endswith("-") and not a.startswith("-")]
+        suf = [a for a in d["affixes"] if a.startswith("-") and not a.endswith("-")]
+        if pre or suf:
+            return pre + [d["base"]] + suf
+    return None
+
+
+def _en_kind(tok: str) -> str:
+    if tok.startswith("-") and tok.endswith("-"):
+        return "link"
+    if tok.endswith("-"):
+        return "prefix"
+    if tok.startswith("-"):
+        return "suffix"
+    return "part"
+
+
+def _en_sim(surface: str, lemma: str) -> int:
+    """어근 조각이 기본형과 맞는가: 3 = 같음, 2 = 어미 e/y 탈락·자음 겹침 정도의 차이, 0 = 아님."""
+    if surface == lemma:
+        return 3
+    cp = 0
+    for a, b in zip(surface, lemma):
+        if a != b:
+            break
+        cp += 1
+    if cp >= 2 and cp >= min(len(surface), len(lemma)) - 2 and abs(len(surface) - len(lemma)) <= 2:
+        return 2
+    return 0
+
+
+def align_en(word: str, tokens: list[str]) -> list[list[list[str]]] | None:
+    """단어를 토큰에 맞춰 단위(unit)별 형태소 [표면, 기본형, 역할] 로 자른다. 맞지 않으면 None.
+    합성어는 어근마다 하나의 단위, 접두사는 뒤 어근의 단위에, 접미사는 앞 어근의 단위에 붙는다."""
+    w = word.lower()
+    kinds = [(_en_kind(t), t.strip("-").lower()) for t in tokens]
+    if any(not t for _, t in kinds) or not any(k == "part" for k, _ in kinds):
+        return None
+    # 접미사 (오른쪽 끝에서 안쪽으로)
+    end = len(w)
+    suffixes: list[tuple[str, str]] = []
+    i = len(kinds)
+    while i > 0 and kinds[i - 1][0] == "suffix":
+        t = kinds[i - 1][1]
+        if not w[:end].endswith(t) or end - len(t) < 2:
+            return None
+        end -= len(t)
+        suffixes.insert(0, (t, "-" + t))
+        i -= 1
+    head = kinds[:i]
+    # 접두사 (왼쪽 끝에서)
+    pos = 0
+    prefixes: list[str] = []
+    j = 0
+    while j < len(head) and head[j][0] == "prefix":
+        t = head[j][1]
+        if not w.startswith(t, pos) or end - (pos + len(t)) < 2:
+            return None
+        pos += len(t)
+        prefixes.append(t)
+        j += 1
+    middle = head[j:]
+    if not middle or any(k in ("prefix", "suffix") for k, _ in middle) or middle[0][0] != "part" or middle[-1][0] != "part":
+        return None
+    span = w[pos:end]
+    surfaces: list[tuple[str, str]] = []  # (표면, 기본형)
+    cur = 0
+    n_parts = sum(1 for k, _ in middle if k == "part")
+    idx_part = 0
+    for k, t in middle:
+        if k == "link":
+            if span.startswith(t, cur):
+                cur += len(t)
+            continue
+        idx_part += 1
+        if idx_part == n_parts:
+            piece = span[cur:]
+            if len(piece) < 2 or _en_sim(piece, t) == 0:
+                return None
+            surfaces.append((piece, t))
+        else:
+            best: tuple[int, int] | None = None
+            for length in range(max(2, len(t) - 2), len(t) + 2):
+                sc = _en_sim(span[cur : cur + length], t)
+                if sc and (best is None or (sc, -abs(length - len(t))) > (best[0], -abs(best[1] - len(t)))):
+                    best = (sc, length)
+            if best is None:
+                return None
+            surfaces.append((span[cur : cur + best[1]], t))
+            cur += best[1]
+    # 단위 만들기
+    units: list[list[list[str]]] = [[[sf, lm, "root"]] for sf, lm in surfaces]
+    if prefixes:
+        units[0] = [[p, p, "prefix"] for p in prefixes] + units[0]
+    for sf, lm in suffixes:
+        units[-1].append([sf if sf.startswith("-") else "-" + sf, lm, "suffix"])
+    return units
+
+
+def build_english(parquet_path: Path, con: sqlite3.Connection) -> dict:
+    import json
+
+    import pyarrow.parquet as pq
+    from wordfreq import zipf_frequency
+
+    con.execute("CREATE TABLE en_entry (word TEXT PRIMARY KEY, spec TEXT NOT NULL, source TEXT NOT NULL)")
+    rows = pq.read_table(parquet_path, columns=["word", "morph_type", "decomposition", "etymology_text"]).to_pylist()
+    stats = {"en_candidates": 0, "en_stored": 0, "en_unaligned": 0, "en_no_tokens": 0}
+    affix_counts: dict[tuple[str, str], int] = {}
+    chosen: dict[str, tuple[float, list, str]] = {}
+    for r in rows:
+        if r["morph_type"] == "simple":
+            continue
+        word = r["word"]
+        if not word.isalpha() or len(word) < 4:
+            continue
+        stats["en_candidates"] += 1
+        tokens, source = parse_en_etymology(r["etymology_text"]), "etymology"
+        if not tokens:
+            tokens, source = en_tokens_from_decomposition(r["decomposition"]), "decomposition"
+        if not tokens:
+            stats["en_no_tokens"] += 1
+            continue
+        units = align_en(word, tokens)
+        if units is None:
+            stats["en_unaligned"] += 1
+            continue
+        if any(role == "suffix" and lemma in EN_INFLECTION_SUFFIXES for unit in units for _, lemma, role in unit):
+            stats["en_inflection_skipped"] = stats.get("en_inflection_skipped", 0) + 1
+            continue  # 굴절(-ed, -s …)은 단어 짜임이 아니다
+        # 같은 철자의 항목이 여러 개면(resting = rest + -ing / re- + sting) 어근이 더 흔한 단어인 쪽을 고른다
+        score = min(zipf_frequency(lm, "en") for unit in units for _, lm, role in unit if role == "root")
+        prev = chosen.get(word.lower())
+        if prev is None or score > prev[0]:
+            chosen[word.lower()] = (score, units, source)
+    for w, (_, units, source) in chosen.items():
+        con.execute("INSERT INTO en_entry VALUES (?, ?, ?)", (w, json.dumps(units, ensure_ascii=False), source))
+        stats["en_stored"] += 1
+        for unit in units:
+            for _, lemma, role in unit:
+                if role in ("prefix", "suffix"):
+                    affix_counts[(lemma, role)] = affix_counts.get((lemma, role), 0) + 1
+    # 사전에서 배운 접사 목록: 사전에 없는 말을 규칙으로 풀 때 접사 후보로 쓴다
+    con.execute("CREATE TABLE en_affix (affix TEXT NOT NULL, role TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (affix, role))")
+    for (lemma, role), n in affix_counts.items():
+        if n >= 8 and lemma.strip("-").isalpha():
+            con.execute("INSERT INTO en_affix VALUES (?, ?, ?)", (lemma.strip("-"), role, n))
+    return stats
+
+
+def build(parquet_path: Path, db_path: Path, parquet_en: Path | None = None) -> None:
     import pyarrow.parquet as pq  # 만들 때만 필요하다
 
     table = pq.read_table(parquet_path, columns=["word", "morph_type", "etymology_text", "derived"])
     rows = table.to_pylist()
     if db_path.exists():
-        db_path.unlink()
+        try:
+            db_path.unlink()
+        except PermissionError:
+            sys.exit(f"{db_path} 를 다른 프로세스(실행 중인 분석 서버 등)가 열고 있다. 서버를 끄고 다시 하거나, --out 으로 다른 경로에 만든 뒤 환경변수 LEXICON_PATH 로 지정할 것.")
     con = sqlite3.connect(db_path)
     con.execute("CREATE TABLE compound (word TEXT PRIMARY KEY, surfaces TEXT NOT NULL, lemmas TEXT NOT NULL, links TEXT NOT NULL, source TEXT NOT NULL)")
     con.execute("CREATE TABLE derivation (word TEXT PRIMARY KEY, prefixes TEXT NOT NULL, suffixes TEXT NOT NULL)")
@@ -292,6 +475,8 @@ def build(parquet_path: Path, db_path: Path) -> None:
         con.execute("INSERT INTO compound VALUES (?, ?, ?, ?, ?)", (word, "|".join(surfaces), "|".join(parts), ",".join(used), "etymology"))
         stats["stored"] += 1
     stats["from_derived_lists"] = add_from_derived_lists(con, rows, seen)
+    if parquet_en is not None:
+        stats.update(build_english(parquet_en, con))
     con.execute(
         "INSERT INTO meta VALUES ('source', 'Wiktionary (de) via yuanxin112/wiktionary-morph, CC-BY-SA-4.0')"
     )
@@ -303,6 +488,8 @@ def build(parquet_path: Path, db_path: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--parquet", type=Path, help="이미 받아 둔 de.parquet 경로 (없으면 내려받는다)")
+    ap.add_argument("--parquet-en", type=Path, help="영어 en.parquet 경로 (없으면 내려받는다)")
+    ap.add_argument("--no-english", action="store_true", help="영어 사전은 만들지 않는다")
     ap.add_argument("--out", type=Path, default=DB_PATH)
     args = ap.parse_args()
     path = args.parquet
@@ -312,7 +499,16 @@ def main() -> None:
         if not path.exists():
             print("내려받는 중 (약 88MB) …", file=sys.stderr)
             urllib.request.urlretrieve(PARQUET_URL, path)
-    build(path, args.out)
+    path_en = None
+    if not args.no_english:
+        path_en = args.parquet_en
+        if path_en is None:
+            DATA_DIR.mkdir(exist_ok=True)
+            path_en = DATA_DIR / "en.parquet"
+            if not path_en.exists():
+                print("영어 원본 내려받는 중 (약 64MB) …", file=sys.stderr)
+                urllib.request.urlretrieve(PARQUET_URL_EN, path_en)
+    build(path, args.out, path_en)
 
 
 if __name__ == "__main__":

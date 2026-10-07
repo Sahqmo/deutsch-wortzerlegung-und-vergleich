@@ -9,6 +9,7 @@ from hanja.table import hanja_table
 from kiwipiepy import Kiwi
 from wordfreq import zipf_frequency
 
+from lexicon import english_affixes, lookup_english
 from translator import Translator
 from units import Morpheme, Unit
 
@@ -181,10 +182,95 @@ def _split_latin_prefix(word: str) -> tuple[str, str] | None:
     return None
 
 
+# 사전에서 배운 접사(빈도순)로 푼다. 사전에 없는 드문 말(unspectral, pseudoscorpion, cannonry)을 위한 규칙이라
+# 남는 부분이 자유 단어일 때만 쪼갠다. 흔한 단어는 굳어진 것으로 보고 그대로 둔다.
+def _learned_prefix(word: str) -> tuple[str, str] | None:
+    zw = _en(word)
+    for p, n in english_affixes()[0]:
+        rest = word[len(p):]
+        if not word.startswith(p) or len(rest) < 4 or n < 12:
+            continue
+        guard = 5.0 if p in ("un", "non") else 4.5
+        if zw >= guard:
+            continue
+        # 짧은 접두사는 남는 부분이 아주 흔한 단어일 때만 (a-, in-, be- 처럼 우연히 맞기 쉽다)
+        if len(p) <= 2 and p not in ("un", "re", "de", "co"):
+            continue
+        # 흔한 접두사(n≥40, 세 글자 이상)가 붙은 드문 말은 남는 부분이 조금 드물어도 쪼갠다 (unspectral, pseudoscorpion)
+        need = 3.0 if p in ("un", "non") and zw < 3.8 else 4.2 if len(p) <= 2 else 2.8 if (n >= 40 and zw < 3.8) else 3.6
+        if _en(rest) >= need:
+            return p, rest
+    return None
+
+
+# 굴절 어미와, 고유명사(julian, romanian)·우연한 일치가 많은 짧은 접미사는 학습한 접미사에서 뺀다
+LEARNED_SUFFIX_EXCLUDE = {"ed", "s", "es", "d", "n", "est", "en", "an", "ian", "ie", "ite", "ee", "le", "man", "ally", "ies"}
+
+
+def _learned_suffix_candidates() -> list[str]:
+    known = set(EN_SUFFIXES)
+    return [s for s, n in english_affixes()[1] if len(s) >= 2 and n >= 30 and s not in known and s not in LEARNED_SUFFIX_EXCLUDE]
+
+
+def _en_lexicon_units(word: str, depth: int = 0) -> list[Unit] | None:
+    """영어판 Wiktionary 어원에서 만든 분해 사전을 조회한다. 어근이 다시 파생어·합성어이고 그 안의 어근이 자유 단어면 한 번 더 풀어서
+    안쪽 접사까지 찾는다 (fearful + -ness → fear + -ful + -ness). 사전에 없으면 None → 규칙으로."""
+    entry = lookup_english(word)
+    if entry is None or depth > 3:
+        return None
+    roots = [lm for spec in entry for _, lm, role in spec if role == "root"]
+    # 흔한 단어인데 어근이 자유 단어가 아니면(happy = hap + -y, report = re + porto) 쪼개지 않는다. 굳어진 흔한 단어는 그대로 둔다
+    if depth == 0 and _en(word) >= 4.0 and any(_en(r) < 3.5 for r in roots):
+        return None
+    # 현재분사·동명사형(resting)인데 사전 항목이 다른 짜임(re- + sting)을 말하면 -ing 로 읽는 규칙 쪽을 따른다
+    if depth == 0 and word.endswith("ing") and not any(lm == "-ing" for spec in entry for _, lm, _ in spec) and _en_base(word[:-3]):
+        return None
+    # 굳어진 흔한 단어에 붙은 접두사(report = re + port)도 규칙과 같은 정책으로 쪼개지 않는다
+    if depth == 0 and _en(word) >= 4.7 and any(role == "prefix" for spec in entry for _, _, role in spec):
+        return None
+    out: list[Unit] = []
+    for spec in entry:
+        morphs = [Morpheme(sf, lm, role=role, origin="native", lang="en") for sf, lm, role in spec]
+        root_idx = next((i for i, m in enumerate(morphs) if m.role == "root"), None)
+        if root_idx is not None and morphs[root_idx].lemma.isalpha() and morphs[root_idx].lemma.lower() != word.lower():
+            sub = _en_lexicon_units(morphs[root_idx].lemma, depth + 1)
+            sub_roots = [m.lemma for u in sub or [] for m in u.morphemes if m.role == "root"]
+            sub_affixes = [m.surface.strip("-") for u in sub or [] for m in u.morphemes if m.role != "root"]
+            # 안쪽으로 풀 때는 어근이 흔한 자유 단어이고 접사가 두 글자 이상일 때만 (a- + maze, hap + -y, see + -n 같은 건 풀지 않는다)
+            if sub and all(_en(r) >= 4.0 for r in sub_roots) and all(len(a) >= 2 for a in sub_affixes):
+                if len(sub) == 1:  # 어근이 파생어면 그 형태소들로 갈아 끼운다 (접두사·접미사는 그대로 바깥에 남는다)
+                    morphs[root_idx : root_idx + 1] = sub[0].morphemes
+                else:  # 어근이 합성어면 단위를 나눈다 (접두사는 첫 단위, 접미사는 마지막 단위에)
+                    before, after = morphs[:root_idx], morphs[root_idx + 1 :]
+                    sub[0].morphemes[:0] = before
+                    sub[-1].morphemes.extend(after)
+                    for u in sub:
+                        u.text = "".join(m.surface.strip("-") for m in u.morphemes)
+                    out.extend(sub)
+                    continue
+        # 사전의 어근에 라틴·그리스계 접두사가 붙어 있으면 규칙 표로 한 번 더 뗀다 (describe → de + scribe)
+        if not any(m.role == "prefix" for m in morphs):
+            for i, m in enumerate(morphs):
+                if m.role == "root":
+                    pre = _split_latin_prefix(m.lemma)
+                    if pre and m.surface.startswith(pre[0]) and len(m.surface) > len(pre[0]):
+                        morphs[i : i + 1] = [
+                            Morpheme(pre[0], pre[0], role="prefix", origin="native", lang="en"),
+                            Morpheme(m.surface[len(pre[0]):], pre[1], role="root", origin="native", lang="en"),
+                        ]
+                    break
+        out.append(Unit("".join(m.surface.strip("-") for m in morphs), morphs))
+    return out
+
+
 def decompose_en(text: str) -> list[Unit]:
     units: list[Unit] = []
     for word in re.findall(r"[A-Za-z]+", text):
         low = word.lower()
+        from_lexicon = _en_lexicon_units(low)
+        if from_lexicon:
+            units.extend(from_lexicon)
+            continue
         # 붙여 쓴 합성어: 두 부분이 모두 흔한 단어이고 전체는 상대적으로 드물 때만 쪼갠다 (carpet 은 그대로, ballpoint 는 쪼갬)
         split = None
         if len(low) >= 7:
@@ -200,8 +286,10 @@ def decompose_en(text: str) -> list[Unit]:
                 units.append(Unit(part, [Morpheme(part, part, role="root", origin="native", lang="en")]))
             continue
         morphs: list[Morpheme] = []
-        for s in EN_SUFFIXES:
-            if low.endswith(s) and len(low) - len(s) >= 4:
+        for s in EN_SUFFIXES + _learned_suffix_candidates():
+            if s not in EN_SUFFIXES and _en(low) >= 4.5:
+                continue  # 학습한 접미사는 드문 말에만 쓴다
+            if low.endswith(s) and len(low) - len(s) >= (4 if s in EN_SUFFIXES else 5):
                 stem = low[: -len(s)]
                 base = _en_base(stem)
                 if base and s in EN_SUFFIXES_NEED_PREFIX and not _split_latin_prefix(base):
@@ -214,7 +302,7 @@ def decompose_en(text: str) -> list[Unit]:
                     break
         if not morphs:
             morphs = [Morpheme(low, low, role="root", origin="native", lang="en")]
-        pre = _split_latin_prefix(morphs[0].lemma)
+        pre = _split_latin_prefix(morphs[0].lemma) or _learned_prefix(morphs[0].lemma)
         if pre:
             p, rest = pre
             surface = morphs[0].surface

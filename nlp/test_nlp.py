@@ -89,6 +89,47 @@ class LexiconLookupTests(unittest.TestCase):
         self.assertEqual(links, ["e"])
 
 
+class EnglishLexiconTests(unittest.TestCase):
+    """영어 사전 파일이 있을 때만 (python build_lexicon.py 로 만든다)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from lexicon import lookup_english
+
+        if lookup_english("fearful") is None:
+            raise unittest.SkipTest("영어 사전 없음")
+
+    def parts(self, word):
+        from targets import decompose_en
+
+        return [[m.surface for m in u.morphemes] for u in decompose_en(word)]
+
+    def test_inner_affixes_found_by_recursion(self):
+        # fearfulness = fearful + -ness, fearful = fear + -ful
+        self.assertEqual(self.parts("fearfulness"), [["fear", "-ful", "-ness"]])
+
+    def test_common_fused_words_stay_whole(self):
+        for w in ("happy", "report", "carpet", "detail"):
+            self.assertEqual(len(self.parts(w)[0]), 1, w)
+
+    def test_compound_parts_become_units(self):
+        self.assertEqual(self.parts("arrowlike"), [["arrow"], ["like"]])
+
+    def test_lexicon_adds_splits_rules_miss(self):
+        # 규칙(접미사 표·접두사 표)만으로는 통째로 남던 말
+        self.assertEqual(self.parts("cannonry"), [["cannon", "-ry"]])
+        self.assertEqual(self.parts("unionistic"), [["union", "-istic"]])
+        self.assertEqual(self.parts("sadness"), [["sad", "-ness"]])
+
+    def test_learned_affixes_split_rare_words(self):
+        # 사전에서 배운 접사 + 남는 부분이 자유 단어
+        self.assertEqual(self.parts("semibenevolent"), [["semi", "benevolent"]])
+
+    def test_inflected_homograph_entry_does_not_win(self):
+        # resting 은 사전에 re- + sting 으로도 있지만 rest + -ing 으로 읽는다
+        self.assertEqual(self.parts("resting"), [["rest", "-ing"]])
+
+
 class GermanTests(unittest.TestCase):
     def test_compound_with_link(self):
         units, links = decompose_de("Abfahrtszeit")
@@ -157,6 +198,21 @@ class GermanTests(unittest.TestCase):
 
 
 class TargetTests(unittest.TestCase):
+    """영어 규칙(접두사·접미사 표) 테스트. 사전 파일의 영향을 받지 않도록 영어 사전 조회를 끈다."""
+
+    @classmethod
+    def setUpClass(cls):
+        import targets
+
+        cls._orig_lookup = targets.lookup_english
+        targets.lookup_english = lambda w: None
+
+    @classmethod
+    def tearDownClass(cls):
+        import targets
+
+        targets.lookup_english = cls._orig_lookup
+
     def test_hanja_reading(self):
         self.assertEqual(hanja_reading_matches("출발", "出発"), ["出", "発"])
         self.assertEqual(hanja_reading_matches("이상", "理想"), ["理", "想"])  # 두음법칙
