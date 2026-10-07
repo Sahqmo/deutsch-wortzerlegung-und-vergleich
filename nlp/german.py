@@ -8,6 +8,7 @@ from compound_split import char_split
 from HanTa import HanoverTagger as ht
 from wordfreq import zipf_frequency
 
+from lexicon import lookup_compound
 from units import Morpheme, Unit
 
 _tagger = ht.HanoverTagger("morphmodel_ger.pgz")
@@ -115,8 +116,31 @@ def _charsplit(word: str) -> tuple[str, str, str] | None:
     return (best[1], best[2], best[3]) if best else None
 
 
-def split_compound(word: str, depth: int = 0) -> tuple[list[str], list[str]]:
-    """합성어 → (요소 표면형 리스트, 연결요소 리스트)."""
+def _split_by_lexicon(word: str, depth: int, hints: dict[str, str]) -> tuple[list[str], list[str]] | None:
+    """Wiktionary 어원에서 만든 분해 사전을 먼저 조회한다. 있으면 각 조각을 다시 조회해 더 쪼갠다 (Bundesanwaltschaft → Bund + Anwaltschaft).
+    조각의 사전 기본형(Grenzkosten 의 Grenz → Grenze)은 hints 에 모아 둔다."""
+    entry = lookup_compound(word)
+    if entry is None or depth > 3:
+        return None
+    out: list[str] = []
+    links: list[str] = list(entry.links)
+    for surface, lemma in zip(entry.surfaces, entry.lemmas):
+        sub = _split_by_lexicon(surface, depth + 1, hints) or (_split_by_lexicon(lemma, depth + 1, hints) if lemma != surface else None)
+        if sub:
+            out.extend(sub[0])
+            links.extend(sub[1])
+        else:
+            out.append(surface)
+            hints[surface] = lemma
+    return out, links
+
+
+def split_compound(word: str, depth: int = 0, hints: dict[str, str] | None = None) -> tuple[list[str], list[str]]:
+    """합성어 → (요소 표면형 리스트, 연결요소 리스트). 사전(있으면) → 규칙 순서. hints 를 주면 사전의 기본형을 거기에 채운다."""
+    if word.lower() not in LEXICALIZED:
+        found = _split_by_lexicon(word, depth, hints if hints is not None else {})
+        if found:
+            return found
     if depth > 3 or len(word) < 6 or word.lower() in LEXICALIZED:
         return [word], []
     if depth > 0 and len(word) < 10:  # 하위 요소는 충분히 길 때만 다시 쪼갠다 (Schreiber → Sch+Reiber 방지)
@@ -276,8 +300,16 @@ def split_affixes(part: str) -> list[Morpheme]:
     return out
 
 
+def _hint_lemma(surface: str, lemma: str) -> str:
+    """사전 기본형을 형태소 기본형으로: Gäns → Gans, Grenz → Grenze. 형용사 명사화형(Kranker)에서 온 어간은 형용사로(krank)."""
+    if lemma.lower().startswith(surface.lower()) and lemma.lower().endswith(("er", "es", "en")) and len(lemma) - len(surface) == 2:
+        return surface.lower()
+    return lemma
+
+
 def decompose_de(word: str) -> tuple[list[Unit], list[str]]:
-    parts, links = split_compound(word)
+    hints: dict[str, str] = {}
+    parts, links = split_compound(word, hints=hints)
     units: list[Unit] = []
     for p in parts:
         low = p.lower()
@@ -286,7 +318,10 @@ def decompose_de(word: str) -> tuple[list[Unit], list[str]]:
             units[-1].morphemes.append(Morpheme(f"-{low}", f"-{low}", role="suffix", origin="native", lang="de"))
             units[-1].text += low
             continue
-        units.append(Unit(text=p, morphemes=split_affixes(p)))
+        morphs = split_affixes(p)
+        if len(morphs) == 1 and p in hints and morphs[0].lemma == morphs[0].surface:
+            morphs[0].lemma = _hint_lemma(p, hints[p])
+        units.append(Unit(text=p, morphemes=morphs))
     # 합성어 분해가 접두사를 따로 떼어낸 경우(Ver|Gleich, Vor|Sicht)엔 뒤 요소에 접두사로 붙인다: ver + gleich
     merged: list[Unit] = []
     i = 0

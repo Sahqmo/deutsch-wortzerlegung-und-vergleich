@@ -53,6 +53,20 @@ cd nlp && .venv\Scripts\python -m unittest test_nlp   # 분해·정렬 테스트
 - **영어 라틴계 접두사:** `de-part-ure` 처럼 접두사+어근+접미사로 쪼개 독일어 ab-fahr-t 와 깊이를 맞춘다. 남는 부분이 흔한 영단어이고 전체는 굳어진 흔한 단어(report, detail…)가 아닐 때만 쪼갠다.
 - **영어 라틴·그리스계 어근 표:** `nlp/targets.py` 의 `LATIN_PREFIXES`(접두사, 자음 앞에서 바뀐 모양 ac-/ap-/col-/im- … 포함), `BOUND_ROOTS`(자유 단어가 아닌 결합형 어근: pare, scribe, ceive, dict …), `EN_STEM_ALT`(어간 변형 script→scribe)에 모아 둔다. `comparison` → com + par + -ison, `description` → de + script + -ion. `-ion`·`-ison`·`-ent`·`-ant` 는 뗀 어간이 접두사+어근 구조일 때만 접미사로 인정해서 `million`·`student` 같은 말은 그대로 둔다. 짧거나 모양이 바뀐 접두사(in-, im-, ap- …)는 어근이 결합형일 때만 써서 `import` 같은 말을 쪼개지 않는다.
 
+## 독일어 분해 사전 (선택)
+합성어 경계는 규칙(CharSplit·빈도)만으로는 드문 말에서 자주 놓친다(정답 표의 어려운 집합에서 약 28%만 맞고 70%는 통째로 남았다). 그래서 **독일어 Wiktionary 어원**에서 만든 사전을 규칙보다 먼저 조회한다. 사전에 없는 말(신조어 등)과 사전 파일이 없는 환경은 지금까지의 규칙으로 처리한다.
+
+```bash
+cd nlp
+.venv\Scripts\pip install -r requirements-lexicon.txt    # 사전을 만들 때만 필요 (pyarrow)
+.venv\Scripts\python build_lexicon.py                     # 원본(약 88MB)을 nlp/data/ 에 받고 nlp/lexicon.sqlite 를 만든다
+```
+
+- 원본은 Hugging Face `yuanxin112/wiktionary-morph`(de, kaikki.org/wiktextract 기반)의 `etymology_text`다. "Determinativkompositum aus den Substantiven Bund und Anwaltschaft sowie dem Fugenelement -es" 같은 문장을 파싱해 구성요소·연결요소를 뽑고(`parse_etymology`), 입력 단어의 표면 조각에 맞춘다(`align`: Grenzkosten → Grenz|Kosten, Gänsefeder → Gäns|Feder). 합성어 4.1만 개 중 약 3.8만 개(91%)가 사전에 들어간다.
+- 사전의 분해는 한 단계라서, 조각을 다시 조회해 더 쪼갠다(`german._split_by_lexicon`). 접두사·접미사는 `SUFFIX_DATA` 접사 표가 계속 맡는다.
+- **라이선스:** 원본이 CC-BY-SA-4.0 이라 `lexicon.sqlite` 도 같은 조건(출처 표기 + 동일 조건 공유)을 이어받는다. 저장소에는 넣지 않는다(`.gitignore`). **공개 배포 전에 라이선스를 다시 확인할 것.**
+- 한계: Wiktionary 에 실린 말만 풀린다. 정답 표 단어 중 사전에 있는 비율은 쉬운 집합 41%, 어려운 집합 23% 였다(사전에 있으면 99% 일치하지만, 정답 표가 같은 출처라 정확도의 증거는 아니다).
+
 ## 쪼갤 수 없는 단어는 진단하지 않는다
 독일어 단어가 형태소 1개(`Zeitung`, `Bibliothek`, `Finger` …)로 판정되면 비교할 짜임이 없어서 어느 언어든 100% 근처가 나온다. 그래서 `nlp/pipeline.py`가 번역기를 부르기 전에 멈추고, `/api/analyze`가 422와 안내 문구(`src/lib/guards.ts`)를 돌려주고, 화면은 로딩 연출을 기다리지 않고 바로 메인으로 돌아와 문구를 보여준다(이전 디자인 `/old`에서는 같은 문구가 그 페이지에 뜬다). 파생어라도 어간+접미사로 쪼개지면(`Gesundheit`) 진단한다. 어휘화된 말(`Zeitung`, `Verein`)과 분해기가 놓친 합성어는 단일 단어로 판정되니, 문구에도 그 가능성을 적어 두었다.
 

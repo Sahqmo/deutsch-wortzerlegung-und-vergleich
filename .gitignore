@@ -8,3 +8,6 @@ next-env.d.ts
 nlp/.venv
 nlp/translations.sqlite
 __pycache__
+
+nlp/data
+nlp/lexicon.sqlite

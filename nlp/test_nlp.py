@@ -16,6 +16,62 @@ def units_roles(word):
     return [m.role for u in units for m in u.morphemes]
 
 
+class LexiconBuildTests(unittest.TestCase):
+    """Wiktionary 어원 문장 → 분해 사전. 사전 파일(lexicon.sqlite) 없이도 돌아간다."""
+
+    def test_parse_and_align_with_link(self):
+        from build_lexicon import align, parse_etymology
+
+        et = "Determinativkompositum, zusammengesetzt aus den Substantiven Bund und Anwaltschaft sowie dem Fugenelement -es"
+        parts, links = parse_etymology(et)
+        self.assertEqual((parts, links), (["Bund", "Anwaltschaft"], ["es"]))
+        self.assertEqual(align("Bundesanwaltschaft", parts, links), (["Bund", "Anwaltschaft"], ["es"]))
+
+    def test_align_stem_changes(self):
+        from build_lexicon import align
+
+        self.assertEqual(align("Grenzkosten", ["Grenze", "Kosten"], []), (["Grenz", "Kosten"], []))  # 어미 e 탈락
+        self.assertEqual(align("Gänsefeder", ["Gans", "Feder"], ["e"]), (["Gäns", "Feder"], ["e"]))  # 움라우트
+        self.assertEqual(align("Krankenhaus", ["Kranker", "Haus"], ["en"]), (["Krank", "Haus"], ["en"]))  # 형용사 명사화형
+
+    def test_parse_ignores_grammar_words_and_alternatives(self):
+        from build_lexicon import parse_etymology
+
+        et = "Determinativkompositum aus dem gebundenen Lexem neo- und dem Substantiv Barock"
+        self.assertEqual(parse_etymology(et)[0], ["neo", "Barock"])
+        # 'oder' 뒤의 다른 해석은 버린다
+        et = "Determinativkompositum aus dem Adjektiv lokal und dem Substantiv Patriotismus oder Ableitung von Lokalpatriot"
+        self.assertEqual(parse_etymology(et)[0], ["lokal", "Patriotismus"])
+        self.assertIsNone(parse_etymology("Ableitung von Wissenschaft mit dem Derivatem -ler"))
+
+    def test_align_rejects_mismatch(self):
+        from build_lexicon import align
+
+        self.assertIsNone(align("Haustür", ["Wasser", "Bahn"], []))
+
+
+class LexiconLookupTests(unittest.TestCase):
+    """사전 파일이 있을 때만 (python build_lexicon.py 로 만든다)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from lexicon import available
+
+        if not available():
+            raise unittest.SkipTest("lexicon.sqlite 없음")
+
+    def test_rare_compound_resolved_by_lexicon(self):
+        # 규칙(CharSplit)만으로는 통째로 남던 말
+        for w in ("Amalgamfüllung", "Teuerungsrate", "Differentialgleichung", "Beregnungsanlage"):
+            units, _ = decompose_de(w)
+            self.assertEqual(len(units), 2, w)
+
+    def test_lexicon_lemma_hint_used(self):
+        units, links = decompose_de("Gänsefeder")
+        self.assertEqual([m.lemma for u in units for m in u.morphemes], ["Gans", "Feder"])
+        self.assertEqual(links, ["e"])
+
+
 class GermanTests(unittest.TestCase):
     def test_compound_with_link(self):
         units, links = decompose_de("Abfahrtszeit")
