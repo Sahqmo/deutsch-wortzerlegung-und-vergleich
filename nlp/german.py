@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from compound_split import char_split
 from HanTa import HanoverTagger as ht
 from wordfreq import zipf_frequency
@@ -11,13 +13,31 @@ from units import Morpheme, Unit
 _tagger = ht.HanoverTagger("morphmodel_ger.pgz")
 
 LINKS = ["s", "es", "n", "en", "e", "er", "ens"]
-PREFIXES = [
-    "zurück", "unter", "durch", "über", "nach", "weg", "vor", "ver", "zer", "ent", "auf", "aus", "bei", "ein",
-    "mit", "her", "hin", "ab", "an", "be", "er", "ge", "um", "un", "zu",
+
+# ───────────── 접두사·접미사 데이터 ─────────────
+# 분리 가능한 접사를 미리 적어 두고, 쪼갤 수 있는지 판정할 때 쓴다. 접사를 뗀 나머지가 실제 단어(또는 동사 어간)일 때만 인정한다.
+# 강한 접두사: 거의 언제나 접두사로 쓰이는 비분리 접두사. 어간이 동사라면 합성어보다 빈도가 높은 단어도 쪼갠다 (verbinden = ver + binden)
+STRONG_PREFIXES = ["miss", "ver", "zer", "ent", "emp", "be", "ge", "er", "un", "ur"]
+# 약한 접두사: 전치사·분리 접두사. 합성어의 앞 요소와 구별이 어려워서 어간이 충분히 흔하고 전체가 훨씬 더 흔하지 않을 때만 쪼갠다
+WEAK_PREFIXES = [
+    "zurück", "zusammen", "heraus", "hinaus", "herein", "hinein", "voraus", "wieder", "wider", "unter", "durch", "über",
+    "nach", "weg", "vor", "auf", "aus", "bei", "ein", "mit", "her", "hin", "ab", "an", "um", "zu",
 ]
-VERB_SUFFIXES = ["ung", "er"]
-ADJ_SUFFIXES = ["schaft", "keit", "heit", "lich", "chen", "lein", "nis"]
-DERIVATIONAL_TAILS = {"heit", "keit", "schaft", "ung", "lich", "chen", "lein", "nis"}
+PREFIXES = sorted(STRONG_PREFIXES + WEAK_PREFIXES, key=len, reverse=True)
+# 어간 종류: v = 동사에서(Verbindung ← verbinden), n = 명사·형용사에서(Freundschaft ← Freund), vn = 둘 다. (접미사, 어간 종류)
+SUFFIX_DATA = [
+    ("schaft", "n"), ("heit", "n"), ("keit", "n"), ("tum", "n"), ("ling", "n"), ("chen", "n"), ("lein", "n"),
+    ("nis", "vn"), ("ung", "v"), ("lich", "vn"), ("bar", "vn"), ("sam", "vn"), ("haft", "n"), ("los", "n"),
+    ("isch", "n"), ("ig", "n"), ("ler", "n"), ("ei", "n"), ("in", "n"), ("er", "v"),
+]
+SUFFIX_MIN_STEM = {"ig": 5, "in": 5, "ei": 5}  # 짧은 접미사는 어간이 길 때만 (Termin, Datei 같은 말을 지킨다). 기본은 4
+SUFFIXES = sorted(SUFFIX_DATA, key=lambda x: len(x[0]), reverse=True)
+# 합성어의 뒷 요소가 아니라 접미사로 다뤄야 하는 것들
+DERIVATIONAL_TAILS = {"heit", "keit", "schaft", "ung", "lich", "chen", "lein", "nis", "tum", "ling", "ler", "erin"}
+ADJ_TAILS = {"bar", "los", "sam", "haft", "ig", "isch"}  # 소문자로 시작하는 낱말(형용사)에서만 접미사. Cocktailbar 의 Bar 는 합성어 요소
+# 파생어처럼 보이지만 어원상 굳은 말
+LEXICALIZED = {"nachbar", "zufrieden", "messer", "finger", "zimmer", "wasser", "butter", "mutter", "vater", "bruder", "schwester", "donner",
+               "verein", "hammer", "vitamin", "zucker", "schüler", "teller"}
 # 파생 접미사로 쓰이는 것들 중 단어 빈도가 낮은 어간(Geselle)도 받아들이는 접미사 (구별력이 높다)
 STRONG_SUFFIXES = {"schaft", "keit", "heit", "lich", "nis"}
 
@@ -47,7 +67,7 @@ def is_verb(infinitive: str) -> bool:
 def strip_link(part: str) -> tuple[str, str] | None:
     """합성어 앞 요소 → (어간, 연결요소). 어간이 사전에 없으면 None."""
     low = part.lower()
-    for link in LINKS:  # 연결요소를 떼는 쪽을 우선 (Abfahrts → Abfahrt)
+    for link in sorted(LINKS, key=len, reverse=True):  # 연결요소를 떼는 쪽을 우선, 긴 것부터 (Abfahrts → Abfahrt, Bundes → Bund+es 이지 Bunde+s 가 아님)
         if low.endswith(link) and len(low) - len(link) >= 3 and is_word(low[: -len(link)], 3.3):
             if not is_word(low, 4.6) or link in ("s", "es"):
                 return part[: -len(link)], link
@@ -69,16 +89,24 @@ def _hanta_split(word: str) -> tuple[list[str], list[str]] | None:
     return [cap(l) if p.startswith("N") else l for l, p in content], links
 
 
+def _is_derived_word(w: str) -> bool:
+    """사전에 없어도 '흔한 어간 + 파생 접미사'로 설명되는 말인가 (Anwaltschaft = Anwalt + -schaft). 합성어 요소 검증에 쓴다."""
+    ms = split_affixes(w)
+    stem = [m for m in ms if m.role != "suffix"][-1].lemma.lower()
+    # 어간이 짧거나 그 자체가 접미사면 우연일 수 있다 (Bar+schaft, Wissen+Schaft+ler)
+    return any(m.role == "suffix" for m in ms) and len(stem) >= 5 and stem not in DERIVATIONAL_TAILS
+
+
 def _charsplit(word: str) -> tuple[str, str, str] | None:
     """CharSplit 후보 중 어휘 검증을 통과한 최고 점수 분해 → (앞, 뒤, 연결요소)."""
     best: tuple[float, str, str, str] | None = None
     for score, a, b in char_split.split_compound(word)[:8]:
         if score < -0.9 or len(a) < 3 or len(b) < 3:
             continue
-        if b.lower() in DERIVATIONAL_TAILS:  # -lich, -schaft 같은 파생 접미사는 합성어의 뒷 요소가 아니라 접미사로 다룬다
-            continue
+        if b.lower() in DERIVATIONAL_TAILS or (b.lower() in ADJ_TAILS and word[:1].islower()):
+            continue  # -lich, -schaft, 형용사의 -bar·-los 같은 파생 접미사는 합성어의 뒷 요소가 아니라 접미사로 다룬다
         sl = strip_link(a)
-        if sl is None or not is_word(b, 2.6):
+        if sl is None or not (is_word(b, 2.6) or (len(a) >= 4 and _is_derived_word(b))):
             continue
         stem, link = sl
         value = score + 0.15 * (min(zipf(stem), 6) + min(zipf(b), 6)) - (0.4 if link else 0)
@@ -89,7 +117,7 @@ def _charsplit(word: str) -> tuple[str, str, str] | None:
 
 def split_compound(word: str, depth: int = 0) -> tuple[list[str], list[str]]:
     """합성어 → (요소 표면형 리스트, 연결요소 리스트)."""
-    if depth > 3 or len(word) < 6:
+    if depth > 3 or len(word) < 6 or word.lower() in LEXICALIZED:
         return [word], []
     if depth > 0 and len(word) < 10:  # 하위 요소는 충분히 길 때만 다시 쪼갠다 (Schreiber → Sch+Reiber 방지)
         return [word], []
@@ -133,43 +161,118 @@ def _cased_lemma(word: str) -> str:
         return word
 
 
-def split_affixes(part: str) -> list[Morpheme]:
-    """한 요소(Abfahrt, Schreiber …)를 접두사/어근/접미사로. 확실할 때만 쪼갠다."""
-    low = part.lower()
-    prefix = ""
-    root = part
-    for p in PREFIXES:
-        rest = low[len(p):]
-        if low.startswith(p) and len(rest) >= 4 and zipf(rest) >= 3.6 and zipf(low) < zipf(rest) + 1.5:
-            prefix, root = p, part[len(p):]
-            if part[:1].isupper():  # 명사는 접두사를 떼도 명사: Abfahrt → ab + Fahrt
-                root = cap(root)
-            break
-
-    suffix = ""
-    lemma = root
-    rlow = root.lower()
-    for s_ in VERB_SUFFIXES + ADJ_SUFFIXES:
-        if not rlow.endswith(s_) or len(rlow) - len(s_) < 3:
+@lru_cache(maxsize=4096)
+def _verb_inf(stem: str) -> str | None:
+    """동사 어간 → 부정형(binden ← bind, wickeln ← wickl, wandern ← wander, hoffen ← hoffn). 실제 동사의 부정형일 때만."""
+    cands = [stem + "en", stem + "n"]
+    if stem and stem[-1] in "lr" and len(stem) >= 3:
+        cands.append(stem[:-1] + "e" + stem[-1] + "n")
+    if stem.endswith("n"):
+        cands.append(stem[:-1] + "en")
+    for c in cands:
+        if not is_word(c, 3.2):
             continue
-        stem = rlow[: -len(s_)]
-        if s_ in VERB_SUFFIXES:
-            inf = stem + "en"
-            if is_word(inf, 3.2) and is_verb(inf) and zipf(rlow) <= zipf(inf) + 0.3:
-                suffix, lemma, root = s_, inf, root[: -len(s_)]
-                break
-        else:
-            base = _suffix_base(stem, 3.0 if s_ in STRONG_SUFFIXES else 3.4)
-            if base:
-                suffix, lemma, root = s_, base, root[: -len(s_)]
-                break
+        try:
+            lemma, tag = _tagger.analyze(c, taglevel=1)[0], _tagger.analyze(c, taglevel=1)[1]
+        except Exception:  # noqa: BLE001
+            continue
+        if tag.startswith("V") and lemma.lower() == c.lower():  # fingen → fangen 처럼 다른 동사의 활용형은 제외
+            return c
+    return None
 
+
+def _noun_adj_base(stem: str, minimum: float) -> str | None:
+    base = _suffix_base(stem, minimum)
+    if base is None and stem.endswith("s") and len(stem) >= 5:  # 연결 -s-: Hoffnungs → Hoffnung
+        base = _suffix_base(stem[:-1], minimum)
+    return base
+
+
+def _resolve(stem: str, kind: str, minimum: float, depth: int = 0) -> tuple[list[str], str] | None:
+    """접미사를 뗀 어간이 '(접두사들) + 실제 단어'로 설명되는가. 설명되면 (접두사 목록, 어근 기본형).
+    접두사를 먼저 떼어 본다: unverbindlich 의 verbind → ver + binden."""
+    low = stem.lower()
+    if low in LEXICALIZED:
+        return [], low
+    if depth < 3:
+        for p in PREFIXES:
+            rest = low[len(p):]
+            if not low.startswith(p) or len(rest) < 3:
+                continue
+            strong = p in STRONG_PREFIXES
+            if p == "ge" and any(c in "äöü" for c in rest):
+                continue  # Gefährlich 의 fähr 처럼 움라우트 어간에 붙은 ge- 는 우연한 일치가 많다
+            if not strong and not (zipf(rest) >= 3.6 and zipf(low) < zipf(rest) + 1.5):
+                continue
+            sub = _resolve(rest, kind, minimum, depth + 1)
+            if sub is None:
+                continue
+            # erlaub+nis: 통째로 동사(erlauben)인데 어간만 명사(Laub)로 설명되는 우연한 일치는 쪼개지 않는다
+            if not (sub[1][:1].islower() and sub[1].endswith("n")) and _verb_inf(low):
+                continue
+            if strong and p in ("ge", "be", "er", "ver", "zer", "ent", "emp") and not sub[0] and sub[1] == rest and len(rest) < 5:
+                continue  # 짧은 명사·형용사 어간에 붙은 우연한 일치(Beet, Verein …)는 제외
+            return [p, *sub[0]], sub[1]
+    if kind in ("v", "vn"):
+        inf = _verb_inf(low)
+        if inf:
+            return [], inf
+    if kind in ("n", "vn") and len(low) >= 4:
+        base = _noun_adj_base(low, minimum)
+        if base:
+            return [], base
+    return None
+
+
+def split_affixes(part: str) -> list[Morpheme]:
+    """한 요소(Abfahrt, Verbindung, unverbindlich …)를 접두사들 / 어근 / 접미사들로. 확실할 때만 쪼갠다.
+    접미사를 안쪽으로 한두 겹 벗기고(Lehrerin = Lehr + -er + -in), 남은 어간에서 접두사를 벗긴다(un + ver + bind)."""
+    low = part.lower()
+    if low in LEXICALIZED:
+        return [Morpheme(part, part, role="root", origin="native", lang="de")]
+    stem = low
+    suffixes: list[str] = []
+    resolved: tuple[list[str], str] | None = None
+    for _ in range(2):
+        if stem in LEXICALIZED:
+            break
+        for suf, kind in SUFFIXES:
+            if suf in ADJ_TAILS and part[:1].isupper() and not suffixes and suf in ("bar",):
+                pass  # 명사로 쓰인 낱말의 -bar 도 접미사로 본다 (Dankbarkeit 안의 dankbar 처럼 대문자로 시작해도 되도록 둔다)
+            if not stem.endswith(suf) or len(stem) - len(suf) < SUFFIX_MIN_STEM.get(suf, 4):
+                continue
+            sub = stem[: -len(suf)]
+            r = _resolve(sub, kind, 3.0 if suf in STRONG_SUFFIXES else 3.4)
+            if r is None:
+                continue
+            if suf == "er" and sub.endswith("er"):  # Lehrer + in 같은 겹침은 위에서 처리
+                continue
+            suffixes.append(suf)
+            stem, resolved = sub, r
+            break
+        else:
+            break
+    if resolved is None:
+        resolved = _resolve(stem, "vn", 3.4) if len(stem) >= 5 else None
+        if resolved is not None and not resolved[0]:
+            resolved = None  # 접두사가 없으면 쪼갤 것이 없다
+    prefixes, lemma = resolved if resolved else ([], part[: len(stem)])
+    pre_len = sum(len(p) for p in prefixes)
+    root = part[pre_len : len(stem)]
+    if part[:1].isupper() and not prefixes:
+        pass
+    elif part[:1].isupper():  # 명사는 접두사를 떼도 명사: Abfahrt → ab + Fahrt
+        root = cap(root)
+    if not resolved or lemma.lower() == root.lower():
+        lemma = root
     out: list[Morpheme] = []
-    if prefix:
-        out.append(Morpheme(prefix, prefix, role="prefix", origin="native", lang="de"))
+    pos = 0
+    for p in prefixes:
+        out.append(Morpheme(p, p, role="prefix", origin="native", lang="de"))
+        pos += len(p)
     out.append(Morpheme(root, lemma, role="root", origin="native", lang="de"))
-    if suffix:
-        out.append(Morpheme(f"-{suffix}", f"-{suffix}", role="suffix", origin="native", lang="de"))
+    for suf in reversed(suffixes):
+        out.append(Morpheme(f"-{suf}", f"-{suf}", role="suffix", origin="native", lang="de"))
     return out
 
 
@@ -177,13 +280,28 @@ def decompose_de(word: str) -> tuple[list[Unit], list[str]]:
     parts, links = split_compound(word)
     units: list[Unit] = []
     for p in parts:
+        low = p.lower()
         # HanTa/CharSplit 가 접미사를 독립 요소로 떼어낸 경우(Gesund+heit)엔 앞 요소에 붙인다.
-        if units and p.lower() in DERIVATIONAL_TAILS:
-            units[-1].morphemes.append(Morpheme(f"-{p.lower()}", f"-{p.lower()}", role="suffix", origin="native", lang="de"))
-            units[-1].text += p.lower()
+        if units and (low in DERIVATIONAL_TAILS or (low in ADJ_TAILS and word[:1].islower())):
+            units[-1].morphemes.append(Morpheme(f"-{low}", f"-{low}", role="suffix", origin="native", lang="de"))
+            units[-1].text += low
             continue
         units.append(Unit(text=p, morphemes=split_affixes(p)))
-    return units, links
+    # 합성어 분해가 접두사를 따로 떼어낸 경우(Ver|Gleich, Vor|Sicht)엔 뒤 요소에 접두사로 붙인다: ver + gleich
+    merged: list[Unit] = []
+    i = 0
+    while i < len(units):
+        u = units[i]
+        low = u.text.lower()
+        if low in PREFIXES and len(u.morphemes) == 1 and i + 1 < len(units):
+            nxt = units[i + 1]
+            nxt.morphemes.insert(0, Morpheme(low, low, role="prefix", origin="native", lang="de"))
+            nxt.text = u.text + nxt.text
+            i += 1
+            continue
+        merged.append(u)
+        i += 1
+    return merged, links
 
 
 def is_plausible_german(word: str, units: list[Unit]) -> bool:

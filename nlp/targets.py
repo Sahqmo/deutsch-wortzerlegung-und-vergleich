@@ -47,7 +47,9 @@ def _is_true_compound(whole: str, a: str, b: str) -> bool:
     return bool(rw) and rw == ra + rb
 
 
-def decompose_ja(text: str) -> list[Unit]:
+def decompose_ja(text: str, split_chars: bool = False) -> list[Unit]:
+    """split_chars: 띄어쓰기 없는 한 단어이고 한자 2~3글자의 한어(漢語)면 한자 한 글자씩 나눈다 (病院 → 病 | 院). 한국어와 같은 정책.
+    한국어 한자어의 단어 경계를 얻는 데 쓸 때는 끄고 부른다 (진공청소기의 真空 이 쪼개지면 안 되므로)."""
     units: list[Unit] = []
     for t in _ja(text):
         pos1 = getattr(t.feature, "pos1", "") or ""
@@ -79,12 +81,35 @@ def decompose_ja(text: str) -> list[Unit]:
                 units.append(Unit(surface, [Morpheme(surface, _ja_lemma(t), role=role, origin=origin, lang="ja")]))
             continue
         units.append(Unit(surface, [Morpheme(surface, _ja_lemma(t), role=role, origin=origin, lang="ja")]))
+    if split_chars and units and len(units) == 1:
+        root, *rest = units[0].morphemes
+        # 無害+な 처럼 한자가 아닌 어미(な·に)가 붙어도 어근이 한어 2~3글자면 글자별로 나눈다. 冷蔵+庫 같은 한자 접미사는 단어 단위로 둔다
+        if (
+            root.origin == "sino"
+            and root.role == "root"
+            and 2 <= len(root.surface) <= 3
+            and all(KANJI.match(c) for c in root.surface)
+            and all(m.role == "suffix" and not KANJI.search(m.surface) for m in rest)
+        ):
+            out = [Unit(c, [Morpheme(c, c, role="root", origin="sino", lang="ja")]) for c in root.surface]
+            out[-1].morphemes.extend(rest)
+            out[-1].text += "".join(m.surface for m in rest)
+            return out
     return units
 
 
 # ───────────────────────── 영어 (wordfreq) ─────────────────────────
 
-EN_SUFFIXES = ["ation", "tion", "sion", "ment", "ness", "less", "ful", "able", "ible", "ous", "ish", "ive", "ize", "ic", "ity", "ure", "ance", "ence", "ing", "er", "or", "al"]
+EN_SUFFIXES = ["ation", "tion", "sion", "ment", "ness", "less", "ful", "able", "ible", "ous", "ish", "ive", "ize", "ic", "ity", "ure", "ance", "ence", "ing", "er", "or", "al",
+               "ison", "ion", "ism", "ist", "ify", "ary", "ory", "ent", "ant"]
+
+# 이 접미사들은 뗀 어간이 '접두사+어근' 구조일 때만 인정한다 (million → mill+ion, student → stud+ent 방지)
+EN_SUFFIXES_NEED_PREFIX = {"ison", "ion", "ent", "ant"}
+
+# 라틴어 어근의 파생형 어간 → 기본형 (description → describe, conclusion → conclude)
+EN_STEM_ALT = [("script", "scribe"), ("duct", "duce"), ("cept", "ceive"), ("sumpt", "sume"), ("clus", "clude"),
+               ("fus", "fuse"), ("vers", "vert"), ("divis", "divide"), ("solut", "solve"), ("volut", "volve"),
+               ("press", "press"), ("ject", "ject")]
 
 
 EN_SUFFIX_WORDS = {"less", "ful", "able", "ness", "ment", "ish"}
@@ -98,6 +123,7 @@ def _en_base(stem: str) -> str | None:
     """접미사를 뗀 어간에서 원래 단어(기본형)를 복원한다. 흔한 영단어면 채택.
     ① 그대로(import+ance) ② 끝의 e 가 빠진 경우(clos+ure → close) ③ -er/-re 의 e 가 자리를 바꾼 경우(entr+ance → enter, centr+al → center)."""
     candidates = [stem, stem + "e"]
+    candidates += [stem[: -len(a)] + b for a, b in EN_STEM_ALT if stem.endswith(a) and a != b]
     if stem.endswith("i"):  # happi+ness → happy
         candidates.append(stem[:-1] + "y")
     if len(stem) >= 3 and stem[-1] in "rl" and stem[-2] not in "aeiouy":
@@ -105,21 +131,52 @@ def _en_base(stem: str) -> str | None:
     return next((c for c in candidates if _en(c) >= 3.4), None)
 
 
+# 라틴어·그리스어 접두사. 자음 앞에서 모양이 바뀌는 것(ad→ac/ap/at, com→col/cor, in→im/il, ob→oc/op, sub→sup …)도 따로 넣는다
 LATIN_PREFIXES = sorted(
-    ["trans", "inter", "super", "anti", "sub", "pre", "pro", "con", "com", "dis", "mis", "non", "ex", "de", "re", "un"],
+    [
+        # 라틴어
+        "trans", "inter", "intro", "super", "circum", "contra", "extra", "retro", "ultra", "subter",
+        "pre", "pro", "con", "com", "col", "cor", "dis", "dif", "mis", "non", "ex", "ef", "de", "re", "un", "in", "im", "il", "ir",
+        "ab", "abs", "ad", "ac", "af", "ag", "al", "ap", "as", "at", "ob", "oc", "of", "op", "per", "post", "sub", "suc", "suf", "sup", "sus",
+        "se", "ante", "co",
+        # 그리스어
+        "anti", "auto", "apo", "cata", "dia", "dys", "epi", "hyper", "hypo", "meta", "para", "peri", "syn", "sym", "tele", "micro", "macro",
+        "mono", "poly", "geo", "bio",
+    ],
     key=len,
     reverse=True,
 )
 
+# 자유 단어가 아닌 라틴어·그리스어 어근(굳어진 결합형). 접두사 뒤에 이것이 오면 쪼갠다: com+pare, de+scribe, re+ceive, tele+graph …
+# (port, part, form 처럼 자유 단어이기도 한 것은 여기 넣지 않는다. 아래 '자유 단어' 규칙이 굳어진 흔한 단어를 걸러 준다)
+BOUND_ROOTS = {
+    "pare", "par", "press", "side", "tract", "spect", "ject", "pel", "mit", "fer", "ceive", "cept", "sist", "tain", "tin", "cur", "cure", "pose",
+    "vert", "verse", "scribe", "script", "struct", "vise", "voke", "voc", "fect", "flect", "gress", "duce", "duct", "pend", "tend",
+    "sume", "cede", "ceed", "claim", "clude", "cline", "dict", "gen", "grade", "lect", "mand", "nounce", "ply", "pute", "quire",
+    "rect", "rupt", "serve", "sult", "sign", "tribute", "vent", "volve", "fuse", "cide", "cise", "stitute", "solve", "vide", "ject",
+    "pear", "cept", "fine", "tect", "plain", "plore", "mote", "mark", "ride", "cord", "cover", "ceal", "tend",
+    "logy", "graph", "graphy", "phone", "scope", "meter", "metry", "nomy", "cracy", "thesis",
+}
+
+
+# 모양이 바뀐 접두사·짧은 접두사는 어근이 결합형일 때만 쓴다 (import 를 im+port 로 쪼개지 않으려고). 나머지는 자유 단어 어근에도 쓴다
+BOUND_ONLY_PREFIXES = {"in", "im", "il", "ir", "col", "cor", "dif", "ef", "ab", "abs", "ad", "ac", "af", "ag", "al", "ap", "as", "at",
+                       "ob", "oc", "of", "op", "per", "post", "suc", "suf", "sup", "sus", "se", "ante", "co", "intro", "circum",
+                       "contra", "extra", "retro", "ultra", "subter"}
+
 
 def _split_latin_prefix(word: str) -> tuple[str, str] | None:
-    """depart → (de, part). 독일어 ab+fahr 처럼 접두사+어근 깊이로 맞추기 위함.
-    남는 부분이 흔한 영단어이고, 전체는 굳어진 흔한 단어(report, detail …)가 아닐 때만 쪼갠다."""
-    if len(word) < 6 or _en(word) >= 4.5:
+    """depart → (de, part), compare → (com, pare). 독일어 ab+fahr 처럼 접두사+어근 깊이로 맞추기 위함.
+    남는 부분이 ① 라틴어·그리스어 결합형 어근(BOUND_ROOTS)이거나 ② 흔한 영단어이면서 전체는 굳어진 흔한 단어(report, detail …)가 아닐 때만 쪼갠다."""
+    if len(word) < 5:
         return None
     for p in LATIN_PREFIXES:
         rest = word[len(p):]
-        if word.startswith(p) and len(rest) >= 3 and _en(rest) >= 4.0:
+        if not word.startswith(p) or len(rest) < 3:
+            continue
+        if rest in BOUND_ROOTS:
+            return p, rest
+        if p not in BOUND_ONLY_PREFIXES and len(word) >= 6 and _en(word) < 4.5 and _en(rest) >= 4.0:
             return p, rest
     return None
 
@@ -147,6 +204,8 @@ def decompose_en(text: str) -> list[Unit]:
             if low.endswith(s) and len(low) - len(s) >= 4:
                 stem = low[: -len(s)]
                 base = _en_base(stem)
+                if base and s in EN_SUFFIXES_NEED_PREFIX and not _split_latin_prefix(base):
+                    base = None
                 if base:
                     morphs = [
                         Morpheme(stem, base, role="root", origin="native", lang="en"),
@@ -158,9 +217,11 @@ def decompose_en(text: str) -> list[Unit]:
         pre = _split_latin_prefix(morphs[0].lemma)
         if pre:
             p, rest = pre
+            surface = morphs[0].surface
+            rest_surface = surface[len(p):] if surface.startswith(p) and len(surface) > len(p) else rest
             morphs[0:1] = [
                 Morpheme(p, p, role="prefix", origin="native", lang="en"),
-                Morpheme(rest, rest, role="root", origin="native", lang="en"),
+                Morpheme(rest_surface, rest, role="root", origin="native", lang="en"),
             ]
         units.append(Unit(low, morphs))
     return units
@@ -272,15 +333,21 @@ def _split_loan(korean: str, katakana: str) -> list[tuple[str, str]]:
     return [(korean[bounds[i]:bounds[i + 1]], toks[i]) for i in range(n)]
 
 
-def _sino_units(form: str, cand: str) -> list[Unit]:
+def _sino_units(form: str, cand: str, split_chars: bool = False) -> list[Unit]:
     """한자어 한 덩어리를 단어 단위로 나눈다. 단어 경계는 일치한 한자 표기(cand)를 일본어 분석기로 끊어 얻고,
-    한자 한 글자 = 한글 한 음절로 대응시킨다. 형태소는 글자가 아니라 '단어'다. (진공청소기 → 진공 | 청소 | 기)"""
+    한자 한 글자 = 한글 한 음절로 대응시킨다. 여러 단어가 이어진 말은 형태소가 글자가 아니라 '단어'다. (진공청소기 → 진공 | 청소 | 기)
+    다만 입력 전체가 띄어쓰기 없는 한 단어이고 2~3글자면(split_chars) 한자 한 글자씩 나눈다. (병원 → 병 | 원)"""
     ja_units = decompose_ja(cand)
     ok = bool(ja_units) and sum(len(u.text) for u in ja_units) == len(cand) and all(
         sum(len(m.surface) for m in u.morphemes) == len(u.text) for u in ja_units
     )
     if not ok:
         ja_units = [Unit(cand, [Morpheme(cand, cand, role="root", origin="sino", lang="ja")])]
+    if split_chars and len(ja_units) == 1 and len(ja_units[0].morphemes) == 1 and 2 <= len(form) <= 3 and len(cand) == len(form):
+        return [
+            Unit(f, [Morpheme(f, k, role="root", origin="sino", lang="ko", lookup_text=k, lookup_lang="ja")])
+            for f, k in zip(form, cand)
+        ]
     out: list[Unit] = []
     pos = 0
     for u in ja_units:
@@ -296,7 +363,7 @@ def _sino_units(form: str, cand: str) -> list[Unit]:
     return out
 
 
-def _try_sino(form: str, tr: Translator, with_zh: bool = True) -> list[Unit] | None:
+def _try_sino(form: str, tr: Translator, with_zh: bool = True, split_chars: bool = False) -> list[Unit] | None:
     """일본어/중국어(번체) 번역 후보 중 음이 글자별로 맞는 한자어가 있으면 한자 형태소 단위들로."""
     try:
         candidates = list(tr.lookup(form, "ko", "ja")[:5])
@@ -307,7 +374,7 @@ def _try_sino(form: str, tr: Translator, with_zh: bool = True) -> list[Unit] | N
     for cand in candidates:
         hanjas = hanja_reading_matches(form, cand)
         if hanjas:
-            return _sino_units(form, cand)
+            return _sino_units(form, cand, split_chars)
     return None
 
 
@@ -316,20 +383,27 @@ HANGUL_WORD = re.compile(r"^[가-힣]{2,}$")
 
 def decompose_ko(text: str, tr: Translator) -> list[Unit]:
     units: list[Unit] = []
-    for chunk in text.split():
+    chunks = text.split()
+    for chunk in chunks:
         # 띄어쓰기 단위 통째로 한자어 매칭을 먼저 시도 (대학교, 운전면허증처럼 형태소 분석기가 끊어 버리는 말도 살림)
+        # 입력 전체가 띄어쓰기 없는 한 단어일 때만 한자 한 글자씩 나눈다 (출발 시간 → 출발 | 시간)
         if HANGUL_WORD.match(chunk):
-            sino = _try_sino(chunk, tr)
+            sino = _try_sino(chunk, tr, split_chars=len(chunks) == 1)
             if sino:
                 units.extend(sino)
                 continue
-        units.extend(_decompose_ko_chunk(chunk, tr))
+        units.extend(_decompose_ko_chunk(chunk, tr, split_chars=len(chunks) == 1))
     return units
 
 
-def _decompose_ko_chunk(text: str, tr: Translator) -> list[Unit]:
+def _decompose_ko_chunk(text: str, tr: Translator, split_chars: bool = False) -> list[Unit]:
     units: list[Unit] = []
-    for tok in _kiwi.tokenize(text):
+    tokens = _kiwi.tokenize(text)
+    # 불쾌+한 처럼 내용어가 하나뿐이고 뒤에 용언화·형용사화 어미(XSA/XSV)만 붙으면, 어근이 2~3글자 한자어일 때 한자 한 글자씩 나눈다
+    # (-적 같은 명사 파생 접미사는 일본어 的 처럼 한자 접미사라서 단어 단위 그대로)
+    content = [t for t in tokens if t.tag.startswith(("NN", "XR", "VV", "VA", "NR", "SL"))]
+    split_chars = split_chars and len(content) == 1 and not any(t.tag == "XSN" for t in tokens)
+    for tok in tokens:
         # 무해+한(하+ㄴ), 부정+적 처럼 명사 뒤의 파생 접미사는 접미사 형태소로. 어미까지 이어지는 부분을 표면형으로 삼는다
         if tok.tag in ("XSA", "XSV", "XSN") and units and units[-1].morphemes[-1].role != "suffix":
             surface = text[tok.start:] if tok.tag in ("XSA", "XSV") else tok.form
@@ -344,7 +418,7 @@ def _decompose_ko_chunk(text: str, tr: Translator) -> list[Unit]:
 
         # ① 한자어
         if not is_verb:
-            sino = _try_sino(form, tr)
+            sino = _try_sino(form, tr, split_chars=split_chars)
             if sino:
                 units.extend(sino)
                 continue

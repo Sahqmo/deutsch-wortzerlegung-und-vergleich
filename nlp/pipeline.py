@@ -20,6 +20,12 @@ SUFFIX_GLOSS = {
     "-lich": "~다운", "-chen": "축소(작은 것)", "-lein": "축소(작은 것)", "-nis": "명사화",
     "-ure": "명사화", "-ation": "명사화", "-tion": "명사화", "-sion": "명사화", "-ment": "명사화", "-ness": "성질(명사화)",
     "-ity": "성질(명사화)", "-ance": "명사화", "-ence": "명사화", "-ing": "~하는 것", "-or": "~하는 것·사람", "-al": "~의",
+    # 독일어 접미사 (추가)
+    "-tum": "상태·영역", "-ling": "~하는 사람·것", "-bar": "~할 수 있는", "-sam": "~하기 쉬운", "-haft": "~같은", "-los": "~없는(부정)",
+    "-isch": "~의", "-ig": "~의 성질", "-ler": "~하는 사람", "-ei": "~하는 곳·행위", "-in": "여성형",
+    # 영어 라틴·그리스계 접미사
+    "-ion": "명사화", "-ison": "명사화", "-ism": "~주의·상태", "-ist": "~하는 사람", "-ify": "~화하다", "-ary": "~의", "-ory": "~의",
+    "-ent": "~하는", "-ant": "~하는",
     # 영어 형용사 접미사
     "-less": "~없는(부정)", "-ful": "~가득한", "-able": "~할 수 있는", "-ible": "~할 수 있는", "-ous": "~성질의", "-ish": "~같은",
     "-ive": "~하는 성향의", "-ic": "~의", "-ize": "~화하다",
@@ -38,6 +44,18 @@ PREFIX_GLOSS = {
     "de": "off / down", "re": "again / back", "pre": "before", "pro": "forth / for", "con": "together", "com": "together",
     "dis": "apart / not", "trans": "across", "inter": "between", "sub": "under", "ex": "out / former", "anti": "against",
     "non": "not", "mis": "wrongly", "super": "above / beyond",
+    # 독일어 접두사 (추가)
+    "emp": "(verb prefix)", "miss": "wrongly", "ur": "original", "zusammen": "together", "heraus": "out", "hinaus": "out (away)",
+    "herein": "in (here)", "hinein": "in (there)", "voraus": "ahead", "wieder": "again", "wider": "against",
+    # 영어 라틴·그리스계 접두사 (자음 앞에서 모양이 바뀐 것 포함)
+    "in": "in / not", "im": "in / not", "il": "in / not", "ir": "in / not", "ad": "to", "ac": "to", "af": "to", "ag": "to", "al": "to",
+    "ap": "to", "as": "to", "at": "to", "ob": "against", "oc": "against", "of": "against", "op": "against", "per": "through",
+    "post": "after", "suc": "under", "suf": "under", "sup": "under", "sus": "under", "se": "apart", "ante": "before", "co": "together",
+    "col": "together", "cor": "together", "intro": "into", "circum": "around", "contra": "against", "extra": "beyond", "retro": "back",
+    "ultra": "beyond", "subter": "under", "dif": "apart", "ef": "out", "abs": "away", "apo": "away", "cata": "down", "dia": "through",
+    "dys": "bad", "epi": "upon", "hyper": "over", "hypo": "under", "meta": "beyond", "para": "beside", "peri": "around",
+    "syn": "together", "sym": "together", "tele": "far", "micro": "small", "macro": "large", "mono": "one", "poly": "many",
+    "geo": "earth", "bio": "life", "auto": "self",
 }
 
 # 번역기는 전치사·불변화사를 문맥 없이 번역하면 엉뚱한 뜻을 낸다(Ein → 'A', Um → 'Um'). 합성어 앞요소로 흔한 말은 직접 적어 둔다.
@@ -241,7 +259,7 @@ def analyze(word_in: str, tr: Translator) -> dict:
         elif lang == "en":
             units = decompose_en(main)
         elif lang == "ja":
-            units = decompose_ja(main)
+            units = decompose_ja(main, split_chars=True)
         else:
             units = decompose_ko(main, tr)
         found = found and bool(units)

@@ -11,6 +11,11 @@ def lemmas(units):
     return [[m.lemma for m in u.morphemes] for u in units]
 
 
+def units_roles(word):
+    units, _ = decompose_de(word)
+    return [m.role for u in units for m in u.morphemes]
+
+
 class GermanTests(unittest.TestCase):
     def test_compound_with_link(self):
         units, links = decompose_de("Abfahrtszeit")
@@ -20,6 +25,37 @@ class GermanTests(unittest.TestCase):
     def test_agent_suffix_restores_infinitive(self):
         units, _ = decompose_de("Kugelschreiber")
         self.assertEqual(lemmas(units), [["Kugel"], ["schreiben", "-er"]])
+
+    def test_compound_whose_tail_is_a_derived_word(self):
+        # Bundes + Anwalt+schaft : 뒷 요소 Anwaltschaft 는 사전 빈도가 낮지만 '어간 + -schaft' 로 설명된다
+        units, links = decompose_de("Bundesanwaltschaft")
+        self.assertEqual(lemmas(units), [["Bund"], ["Anwalt", "-schaft"]])
+        self.assertEqual(links, ["es"])
+        # 이미 잘 풀리던 말이 어간이 짧은 우연한 분해(Mit+Gliedschaft, Nach+Barschaft)로 망가지지 않는다
+        self.assertEqual(lemmas(decompose_de("Mitgliedschaft")[0]), [["Mitglied", "-schaft"]])
+        self.assertEqual(lemmas(decompose_de("Nachbarschaftshilfe")[0])[0], ["Nachbar", "-schaft"])
+
+    def test_affix_tables_split_prefix_and_suffix_stacks(self):
+        # 접두사·접미사를 데이터로 두고, 접사를 뗀 나머지가 실제 단어일 때 쪼갠다. 접사는 여러 겹도 가능
+        def parts(w):
+            units, _ = decompose_de(w)
+            return [[m.surface for m in u.morphemes] for u in units]
+
+        self.assertEqual(parts("unverbindlich"), [["un", "ver", "bind", "-lich"]])
+        self.assertEqual(parts("Verbindung"), [["ver", "Bind", "-ung"]])
+        self.assertEqual(parts("Entwicklung"), [["ent", "Wickl", "-ung"]])
+        self.assertEqual(parts("Lehrerin"), [["Lehr", "-er", "-in"]])
+        self.assertEqual(parts("Wissenschaftler"), [["Wissen", "-schaft", "-ler"]])
+        self.assertEqual(parts("dankbar"), [["dank", "-bar"]])
+        self.assertEqual(parts("hilflos"), [["hilf", "-los"]])
+        # 합성어 분해가 접두사를 따로 떼어도 뒤 요소에 접두사로 붙는다
+        self.assertEqual(parts("Vergleich"), [["ver", "Gleich"]])
+        self.assertEqual(units_roles("Vergleich"), ["prefix", "root"])
+
+    def test_affix_tables_do_not_split_accidental_matches(self):
+        for w in ("Zeitung", "Finger", "Nachbar", "Verein", "Mutter", "Termin", "Datei", "Polizei", "Berg", "Bett", "Besen", "Mädchen", "Essig"):
+            self.assertEqual(sum(len(u.morphemes) for u in decompose_de(w)[0]), 1, w)
+        self.assertEqual(lemmas(decompose_de("Nachbarschaft")[0]), [["Nachbar", "-schaft"]])
 
     def test_simplex_not_split(self):
         for w in ("Haus", "Schmetterling", "Zeitung", "Finger"):
@@ -74,6 +110,17 @@ class TargetTests(unittest.TestCase):
         self.assertEqual([[m.surface for m in u.morphemes] for u in decompose_ja("出発時間")], [["出発"], ["時間"]])
         self.assertEqual([[(m.surface, m.role) for m in u.morphemes] for u in decompose_ja("冷蔵庫")], [[("冷蔵", "root"), ("庫", "suffix")]])
 
+    def test_japanese_short_sino_word_is_split_into_characters(self):
+        # 한국어와 같은 정책: 띄어쓰기 없는 한 단어이고 한자 2~3글자면 한자 한 글자씩 (split_chars 를 켠 경우만)
+        chars = lambda w: [[m.surface for m in u.morphemes] for u in decompose_ja(w, split_chars=True)]
+        self.assertEqual(chars("病院"), [["病"], ["院"]])
+        self.assertEqual(chars("出発時間"), [["出発"], ["時間"]])  # 여러 단어면 단어 단위
+        self.assertEqual(chars("今日"), [["今日"]])  # 和語 는 그대로
+        self.assertEqual(chars("手袋"), [["手"], ["袋"]])
+        # 한자가 아닌 어미(な)가 붙어도 어근이 2글자 한어면 글자별, 한자 접미사(庫·的)가 붙으면 단어 단위
+        self.assertEqual([[(m.surface, m.role) for m in u.morphemes] for u in decompose_ja("不快な", split_chars=True)], [[("不", "root")], [("快", "root"), ("な", "suffix")]])
+        self.assertEqual(chars("冷蔵庫"), [["冷蔵", "庫"]])
+
     def test_japanese_okurigana_compounds_split(self):
         # 활용한 모양의 읽기(取り=トリ)로 비교해야 오쿠리가나 합성어가 쪼개진다
         for whole, parts in [("取り消し", ["取り", "消し"]), ("払い戻し", ["払い", "戻し"]), ("回り道", ["回り", "道"]), ("申し込み", ["申し", "込み"])]:
@@ -105,6 +152,24 @@ class TargetTests(unittest.TestCase):
                          [("de", "prefix"), ("part", "root"), ("-ure", "suffix")])
         # 굳어진 흔한 단어·남는 부분이 단어가 아닌 경우는 그대로
         for w in ("report", "carpet", "hospital", "reason", "detail"):
+            self.assertEqual(len(decompose_en(w)[0].morphemes), 1, w)
+
+    def test_english_latin_greek_roots(self):
+        # Vergleich = ver+gleich 와 같은 깊이: comparison = com + par(e) + -ison
+        def parts(w):
+            return [m.surface for m in decompose_en(w)[0].morphemes]
+
+        self.assertEqual(parts("comparison"), ["com", "par", "-ison"])
+        self.assertEqual(parts("compare"), ["com", "pare"])
+        self.assertEqual(parts("description"), ["de", "script", "-ion"])
+        self.assertEqual(parts("prediction"), ["pre", "dict", "-ion"])
+        self.assertEqual(parts("expression"), ["ex", "press", "-ion"])
+        self.assertEqual(parts("different"), ["dif", "fer", "-ent"])
+        self.assertEqual(parts("telephone"), ["tele", "phone"])
+        self.assertEqual(parts("biology"), ["bio", "logy"])
+        self.assertEqual(decompose_en("comparison")[0].morphemes[0].role, "prefix")
+        # 접두사 구조가 아닌 -ion/-ent 는 접미사로 떼지 않는다
+        for w in ("million", "passion", "student", "parent", "company", "problem", "present", "content", "pattern", "moment"):
             self.assertEqual(len(decompose_en(w)[0].morphemes), 1, w)
 
     def test_english_suffix_restores_enter(self):
@@ -153,13 +218,16 @@ class MultiWordSinoTests(unittest.TestCase):
     def test_prefix_syllable_not_dropped(self):
         self.assertEqual(self.groups("대학교"), [["대"], ["학교"]])
 
-    def test_single_word_is_not_split_into_characters(self):
-        self.assertEqual(self.groups("병원"), [["병원"]])
+    def test_short_single_word_is_split_into_characters(self):
+        # 입력 전체가 띄어쓰기 없는 한 단어이고 2~3글자면 한자 한 글자씩. 띄어쓴 말·여러 단어가 이어진 말은 단어 단위 그대로
+        self.assertEqual(self.groups("병원"), [["병"], ["원"]])
+        self.assertEqual(self.groups("출발 시간"), [["출발"], ["시간"]])
         self.assertEqual(self.groups("세탁기"), [["세탁"], ["기"]])
 
     def test_adjective_ending_is_suffix(self):
-        # 무해 + 한(하+ㄴ), 부정 + 적
-        self.assertEqual([[(m.surface, m.role) for m in u.morphemes] for u in decompose_ko("무해한", self.tr)], [[("무해", "root"), ("한", "suffix")]])
+        # 어근이 2글자 한자어면 한자 단위: 무 | 해+한(하+ㄴ), 불 | 쾌+한. -적 은 한자 접미사라 부정 + 적 그대로
+        self.assertEqual([[(m.surface, m.role) for m in u.morphemes] for u in decompose_ko("무해한", self.tr)], [[("무", "root")], [("해", "root"), ("한", "suffix")]])
+        self.assertEqual([[(m.surface, m.role) for m in u.morphemes] for u in decompose_ko("불쾌한", self.tr)], [[("불", "root")], [("쾌", "root"), ("한", "suffix")]])
         self.assertEqual([[(m.surface, m.role) for m in u.morphemes] for u in decompose_ko("부정적인", self.tr)], [[("부정", "root"), ("적", "suffix")]])
 
     def test_matches_japanese_depth(self):
@@ -206,10 +274,13 @@ class AlignmentTests(unittest.TestCase):
         self.assertEqual(groups[0]["target"], [0, 1])
 
     def test_single_sino_word_vs_compound_is_merged_like_hospital(self):
-        # 병원은 한 단어(형태소 1개)라서 hospital·病院 과 똑같이 krank+Haus 와 한 그룹이 된다
-        for lang in ("en", "ko", "ja"):
+        # hospital 은 한 단어라서 krank+Haus 와 한 그룹이 된다. 한국어 병원·일본어 病院 은 한자 한 글자씩(병|원, 病|院)이라 krank = 病, Haus = 院 으로 짝지어진다
+        en = self.target("Krankenhaus", "en")
+        self.assertEqual([g["de"] for g in en["alignment"]], [[0, 1]])
+        for lang in ("ko", "ja"):
             t = self.target("Krankenhaus", lang)
-            self.assertEqual([g["de"] for g in t["alignment"]], [[0, 1]], lang)
+            self.assertEqual([g["de"] for g in t["alignment"]], [[0], [1]], lang)
+            self.assertEqual([g["target"] for g in t["alignment"]], [[0], [1]], lang)
 
     def test_modifier_never_pairs_with_head_position(self):
         # Staub(수식어)가 핵심어 자리의 '기'(機)와 짝지어지던 문제
@@ -247,9 +318,9 @@ class GlossTests(unittest.TestCase):
         self.assertEqual(self.glosses("Staubsauger")["Staub"], "dust")
 
     def test_particles_use_curated_table(self):
-        # Ein 을 번역기에 물으면 'A' (→ 한국어 '라') 가 나온다
+        # Ein 을 번역기에 물으면 'A' (→ 한국어 '라') 가 나온다. 접두사로 판정되면 접사 표(PREFIX_GLOSS)의 뜻을 쓴다
         g = self.glosses("Eingang")
-        self.assertEqual(g["Ein"], "in / into")
+        self.assertEqual(g["ein"], "in")
 
     def test_glosses_are_english_except_grammar_suffixes(self):
         a = self.analyze("Kugelschreiber", self.tr)
@@ -315,7 +386,7 @@ class UnsplittableWordTests(unittest.TestCase):
         return analyze(word, self.ExplodingTranslator())
 
     def test_simplex_words_stop_early(self):
-        for w in ("Zeitung", "Haus", "Bibliothek", "Schmetterling", "Lehrer"):
+        for w in ("Zeitung", "Haus", "Bibliothek", "Schmetterling", "Finger"):
             a = self.run_word(w)
             self.assertEqual(len(a["de"]["morphemes"]), 1, w)
             self.assertTrue(all(not t["found"] for t in a["targets"]), w)
